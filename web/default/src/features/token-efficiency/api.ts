@@ -96,12 +96,10 @@ export { getTokenScopeL1ByModel as getTokenScopeL1ByDimensionOld }
 export async function getTokenScopeL1ByDimension(
   params: L1ByDimensionParams = {}
 ): Promise<TokenScopeL1Metrics[]> {
-  console.log('[tokenscope-api] GET /api/tokenscope/l1/by-dimension, params:', JSON.stringify(params))
   const res = await api.get<{
     success: boolean
     data: TokenScopeL1Metrics[]
   }>('/api/tokenscope/l1/by-dimension', { params })
-  console.log('[tokenscope-api] response count:', res.data.data?.length, 'first:', JSON.stringify(res.data.data?.[0]))
   return res.data.data
 }
 
@@ -128,12 +126,10 @@ export async function getTokenScopeSelfL1ByModel(
 export async function getTokenScopeSelfL1ByDimension(
   params: Omit<L1ByDimensionParams, 'channel' | 'username'> = {}
 ): Promise<TokenScopeL1Metrics[]> {
-  console.log('[tokenscope-api] GET /api/tokenscope/self/l1/by-dimension, params:', JSON.stringify(params))
   const res = await api.get<{
     success: boolean
     data: TokenScopeL1Metrics[]
   }>('/api/tokenscope/self/l1/by-dimension', { params })
-  console.log('[tokenscope-api] response count:', res.data.data?.length, 'first:', JSON.stringify(res.data.data?.[0]))
   return res.data.data
 }
 
