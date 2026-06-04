@@ -112,6 +112,27 @@ func GetTokenScopeL2Summary(c *gin.Context) {
 	common.ApiSuccess(c, metrics)
 }
 
+// GetTokenScopeFilterOptions returns distinct model_name and group values for admin.
+func GetTokenScopeFilterOptions(c *gin.Context) {
+	options, err := model.GetTokenScopeFilterOptions(0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, options)
+}
+
+// GetTokenScopeSelfFilterOptions returns distinct model_name and group values for the current user.
+func GetTokenScopeSelfFilterOptions(c *gin.Context) {
+	userId := c.GetInt("id")
+	options, err := model.GetTokenScopeFilterOptions(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, options)
+}
+
 // GetTokenScopeL2RequestDetail returns the context parts for a specific request.
 func GetTokenScopeL2RequestDetail(c *gin.Context) {
 	requestId := c.Param("request_id")

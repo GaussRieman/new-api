@@ -314,9 +314,11 @@ func SetApiRouter(router *gin.Engine) {
 
 		tokenscopeRoute := apiRouter.Group("/tokenscope")
 		{
+			tokenscopeRoute.GET("/filters", middleware.AdminAuth(), controller.GetTokenScopeFilterOptions)
 			tokenscopeRoute.GET("/l1/summary", middleware.AdminAuth(), controller.GetTokenScopeL1Summary)
 			tokenscopeRoute.GET("/l1/by-model", middleware.AdminAuth(), controller.GetTokenScopeL1ByModel)
 			tokenscopeRoute.GET("/l1/timeseries", middleware.AdminAuth(), controller.GetTokenScopeL1TimeSeries)
+			tokenscopeRoute.GET("/self/filters", middleware.UserAuth(), controller.GetTokenScopeSelfFilterOptions)
 			tokenscopeRoute.GET("/self/l1/summary", middleware.UserAuth(), controller.GetTokenScopeSelfL1Summary)
 			tokenscopeRoute.GET("/self/l1/by-model", middleware.UserAuth(), controller.GetTokenScopeSelfL1ByModel)
 			// L2 deep diagnostics (admin only for security - contains raw request content)

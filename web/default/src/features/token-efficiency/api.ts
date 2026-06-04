@@ -1,5 +1,24 @@
 import { api } from '@/lib/api'
 
+export interface TokenScopeFilterOptions {
+  model_names: string[]
+  groups: string[]
+}
+
+export async function getTokenScopeFilters(): Promise<TokenScopeFilterOptions> {
+  const res = await api.get<{ success: boolean; data: TokenScopeFilterOptions }>(
+    '/api/tokenscope/filters'
+  )
+  return res.data.data
+}
+
+export async function getTokenScopeSelfFilters(): Promise<TokenScopeFilterOptions> {
+  const res = await api.get<{ success: boolean; data: TokenScopeFilterOptions }>(
+    '/api/tokenscope/self/filters'
+  )
+  return res.data.data
+}
+
 export interface TokenScopeL1Metrics {
   model_name: string
   request_count: number

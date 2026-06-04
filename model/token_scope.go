@@ -25,7 +25,7 @@ type TokenScopeL1Metrics struct {
 	RequestCount      int64   `json:"request_count"`
 	OutputCost        float64 `json:"output_cost"`       // quota / completion_tokens
 	ContextLoad       float64 `json:"context_load"`      // prompt_tokens / completion_tokens
-	CacheReuseRate    float64 `json:"cache_reuse_rate"`  // cache_read / prompt_tokens
+	CacheReuseRate    float64 `json:"cache_reuse_rate"`  // cache_read / (prompt_tokens + cache_read)
 	TotalQuota        int64   `json:"total_quota"`
 	TotalPromptTokens int64   `json:"total_prompt_tokens"`
 	TotalOutputTokens int64   `json:"total_output_tokens"`
@@ -65,8 +65,8 @@ func aggToMetrics(agg TokenScopeL1Agg) TokenScopeL1Metrics {
 		m.OutputCost = float64(agg.TotalQuota) / float64(agg.TotalOutputTokens)
 		m.ContextLoad = float64(agg.TotalPromptTokens) / float64(agg.TotalOutputTokens)
 	}
-	if agg.TotalPromptTokens > 0 {
-		m.CacheReuseRate = float64(agg.TotalCacheRead) / float64(agg.TotalPromptTokens)
+	if agg.TotalPromptTokens+agg.TotalCacheRead > 0 {
+		m.CacheReuseRate = float64(agg.TotalCacheRead) / float64(agg.TotalPromptTokens+agg.TotalCacheRead)
 	}
 	return m
 }
@@ -315,6 +315,37 @@ func GetTokenScopeL2Summary(startTimestamp, endTimestamp int64, modelName string
 		return nil, fmt.Errorf("failed to query L2 summary: %w", err)
 	}
 	return summaries, nil
+}
+
+// TokenScopeFilterOptions holds the available filter values for the tokenscope UI.
+type TokenScopeFilterOptions struct {
+	ModelNames []string `json:"model_names"`
+	Groups     []string `json:"groups"`
+}
+
+// GetTokenScopeFilterOptions returns distinct model_name and group values from logs.
+func GetTokenScopeFilterOptions(userId int) (*TokenScopeFilterOptions, error) {
+	opts := &TokenScopeFilterOptions{}
+
+	tx := LOG_DB.Table("logs").Where("type = ?", LogTypeConsume)
+	if userId > 0 {
+		tx = tx.Where("user_id = ?", userId)
+	}
+
+	if err := tx.Distinct("model_name").Where("model_name != ''").Pluck("model_name", &opts.ModelNames).Error; err != nil {
+		return nil, fmt.Errorf("failed to query distinct model names: %w", err)
+	}
+
+	tx2 := LOG_DB.Table("logs").Where("type = ?", LogTypeConsume)
+	if userId > 0 {
+		tx2 = tx2.Where("user_id = ?", userId)
+	}
+
+	if err := tx2.Distinct(logGroupCol).Where(logGroupCol+" != ''").Pluck(logGroupCol, &opts.Groups).Error; err != nil {
+		return nil, fmt.Errorf("failed to query distinct groups: %w", err)
+	}
+
+	return opts, nil
 }
 
 // GetRequestContextPartsByRequestId returns context parts for a specific request.

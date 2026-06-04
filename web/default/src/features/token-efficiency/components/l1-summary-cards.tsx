@@ -50,7 +50,10 @@ export function L1SummaryCards({ data, loading }: L1SummaryCardsProps) {
       {cards.map((card) => (
         <Card key={card.title}>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>{card.title}</CardTitle>
+            <div>
+              <CardTitle className='text-sm font-medium'>{card.title}</CardTitle>
+              <p className='text-xs text-muted-foreground'>{card.description}</p>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -58,9 +61,6 @@ export function L1SummaryCards({ data, loading }: L1SummaryCardsProps) {
             ) : (
               <>
                 <div className='text-2xl font-bold'>{card.value}</div>
-                <p className='text-xs text-muted-foreground'>
-                  {card.description}
-                </p>
                 {card.subValue && (
                   <p className='mt-1 text-xs text-muted-foreground'>
                     {card.subValue}

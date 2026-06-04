@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Table,
@@ -16,13 +35,96 @@ import {
 } from '../lib/format'
 import { formatQuota } from '@/lib/format'
 
+type SortKey = keyof TokenScopeL1Metrics
+type SortDirection = 'asc' | 'desc'
+
 interface L1ModelTableProps {
   data: TokenScopeL1Metrics[]
   loading: boolean
 }
 
+/** Numeric columns that support sorting */
+const SORTABLE_COLUMNS: SortKey[] = [
+  'request_count',
+  'output_cost',
+  'context_load',
+  'cache_reuse_rate',
+  'total_quota',
+  'total_prompt_tokens',
+  'total_output_tokens',
+  'total_cache_read',
+]
+
 export function L1ModelTable({ data, loading }: L1ModelTableProps) {
   const { t } = useTranslation()
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const sortedData = useMemo(() => {
+    if (!sortKey) return data
+    return [...data].sort((a, b) => {
+      const av = a[sortKey] ?? 0
+      const bv = b[sortKey] ?? 0
+      return sortDirection === 'asc'
+        ? (av as number) - (bv as number)
+        : (bv as number) - (av as number)
+    })
+  }, [data, sortKey, sortDirection])
+
+  const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
+    const active = sortKey === columnKey
+    return (
+      <span className='ml-0.5 inline-flex flex-col leading-none -space-y-1'>
+        <span
+          style={{ fontSize: 10 }}
+          className={
+            active && sortDirection === 'asc'
+              ? 'text-foreground'
+              : 'text-muted-foreground opacity-40'
+          }
+        >
+          ▲
+        </span>
+        <span
+          style={{ fontSize: 10 }}
+          className={
+            active && sortDirection === 'desc'
+              ? 'text-foreground'
+              : 'text-muted-foreground opacity-40'
+          }
+        >
+          ▼
+        </span>
+      </span>
+    )
+  }
+
+  const SortableHead = ({
+    columnKey,
+    label,
+  }: {
+    columnKey: SortKey
+    label: string
+  }) => (
+    <TableHead
+      className='text-right cursor-pointer select-none'
+      onClick={() => handleSort(columnKey)}
+    >
+      <span className='inline-flex items-center'>
+        {label}
+        <SortIcon columnKey={columnKey} />
+      </span>
+    </TableHead>
+  )
 
   if (loading) {
     return (
@@ -48,18 +150,18 @@ export function L1ModelTable({ data, loading }: L1ModelTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead>{t('Model')}</TableHead>
-            <TableHead className='text-right'>{t('Requests')}</TableHead>
-            <TableHead className='text-right'>{t('Output Cost')}</TableHead>
-            <TableHead className='text-right'>{t('Context Load')}</TableHead>
-            <TableHead className='text-right'>{t('Cache Reuse')}</TableHead>
-            <TableHead className='text-right'>{t('Total Quota')}</TableHead>
-            <TableHead className='text-right'>{t('Input Tokens')}</TableHead>
-            <TableHead className='text-right'>{t('Output Tokens')}</TableHead>
-            <TableHead className='text-right'>{t('Cache Read')}</TableHead>
+            <SortableHead columnKey='request_count' label={t('Requests')} />
+            <SortableHead columnKey='output_cost' label={t('Output Cost')} />
+            <SortableHead columnKey='context_load' label={t('Context Load')} />
+            <SortableHead columnKey='cache_reuse_rate' label={t('Cache Reuse')} />
+            <SortableHead columnKey='total_quota' label={t('Total Quota')} />
+            <SortableHead columnKey='total_prompt_tokens' label={t('Input Tokens')} />
+            <SortableHead columnKey='total_output_tokens' label={t('Output Tokens')} />
+            <SortableHead columnKey='total_cache_read' label={t('Cache Read')} />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((row) => (
+          {sortedData.map((row) => (
             <TableRow key={row.model_name}>
               <TableCell className='font-medium'>{row.model_name}</TableCell>
               <TableCell className='text-right'>

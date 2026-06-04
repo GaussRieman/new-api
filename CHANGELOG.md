@@ -42,3 +42,21 @@
 - 侧边栏"成本分析"菜单项默认可见（`DEFAULT_SIDEBAR_MODULES.console.tokenscope: true`）
 - 翻译 key 放入 `translation` 命名空间内，确保中文切换生效
 - L1SummaryCards 组件 null 安全处理（`?.` 可选链 + 空值回退）
+
+## [Unreleased] — TokenScope 成本分析改进
+
+### 新增
+
+- **L1 明细表排序**：请求数、产出成本、上下文负载、缓存复用、总配额、输入 Token、输出 Token、缓存读取等 8 个数值列支持点击表头排序
+  - 升序/降序切换，当前排序列高亮显示，非激活列箭头半透明
+  - 双箭头指示器（▲▼），适配 Table 组件 `[&_th_*]:text-sm` 样式覆盖
+
+- **后端 API**：
+  - `/api/tokenscope/filters` — 获取筛选选项（模型名称、分组列表，admin）
+  - `/api/tokenscope/self/filters` — 获取当前用户筛选选项
+
+- **筛选栏增强**：新增模型名称和分组下拉筛选，数据从后端动态加载
+
+- **前端配置**：
+  - Rsbuild dev server 固定端口 3003（避免端口漂移）
+  - `.env.local` 配置 `VITE_REACT_APP_SERVER_URL` 指向后端端口
