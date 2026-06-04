@@ -35,7 +35,7 @@ export function TokenEfficiency() {
   }, [])
 
   const [filters, setFilters] = useState<L1FilterState>(getDefaultFilters)
-  const [dimension, setDimension] = useState<L1Dimension>('model')
+  const [dimension, setDimension] = useState<L1Dimension>('user')
   const [summary, setSummary] = useState<TokenScopeL1Metrics | null>(null)
   const [byDimension, setByDimension] = useState<TokenScopeL1Metrics[]>([])
   const [l2Summary, setL2Summary] = useState<TokenScopeL2Summary[]>([])
