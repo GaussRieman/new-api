@@ -5,6 +5,7 @@ import {
   formatOutputCost,
   formatContextLoad,
   formatCacheReuseRate,
+  formatTokenCount,
 } from '../lib/format'
 
 interface L1SummaryCardsProps {
@@ -22,7 +23,7 @@ export function L1SummaryCards({ data, loading }: L1SummaryCardsProps) {
       description: t('Cost per 1K output tokens'),
       subValue:
         data?.request_count != null
-          ? `${data.request_count.toLocaleString()} ${t('requests')}`
+          ? t('{{count}} requests', { count: data.request_count.toLocaleString() })
           : '',
     },
     {
@@ -30,8 +31,11 @@ export function L1SummaryCards({ data, loading }: L1SummaryCardsProps) {
       value: data ? formatContextLoad(data.context_load) : '-',
       description: t('Input tokens per output token'),
       subValue:
-        data?.total_prompt_tokens != null
-          ? `${t('Input')}: ${data.total_prompt_tokens.toLocaleString()} | ${t('Output')}: ${data.total_output_tokens.toLocaleString()}`
+        data?.total_prompt_tokens != null && data?.total_output_tokens != null
+          ? t('Input {{input}} · Output {{output}}', {
+              input: formatTokenCount(data.total_prompt_tokens),
+              output: formatTokenCount(data.total_output_tokens),
+            })
           : '',
     },
     {
@@ -40,7 +44,9 @@ export function L1SummaryCards({ data, loading }: L1SummaryCardsProps) {
       description: t('Fraction of input from cache'),
       subValue:
         data?.total_cache_read != null
-          ? `${t('Cache Read')}: ${data.total_cache_read.toLocaleString()}`
+          ? t('Cache read {{count}} tokens', {
+              count: formatTokenCount(data.total_cache_read),
+            })
           : '',
     },
   ]

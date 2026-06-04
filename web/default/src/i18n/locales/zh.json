@@ -4557,6 +4557,9 @@
     "24h": "24小时",
     "7d": "7天",
     "30d": "30天",
-    "requests": "请求"
+    "requests": "请求",
+    "{{count}} requests": "{{count}} 次请求",
+    "Input {{input}} · Output {{output}}": "输入 {{input}} · 输出 {{output}}",
+    "Cache read {{count}} tokens": "缓存读取 {{count}} Token"
   }
 }
