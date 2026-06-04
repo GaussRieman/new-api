@@ -18,19 +18,6 @@ import type { TokenScopeL1Metrics, L1FilterState, TokenScopeL2Summary, L1Dimensi
 import { SectionPageLayout } from '@/components/layout'
 import { useIsAdmin } from '@/hooks/use-admin'
 
-function dimensionHeading(d: L1Dimension): string {
-  switch (d) {
-    case 'model':
-      return 'By Model'
-    case 'user':
-      return 'By User'
-    case 'key':
-      return 'By API Key'
-    case 'channel':
-      return 'By Channel'
-  }
-}
-
 export function TokenEfficiency() {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
@@ -139,36 +126,33 @@ export function TokenEfficiency() {
             <TabsContent value='l1' className='space-y-6'>
               <L1SummaryCards data={summary} loading={loading} />
               <div>
-                <div className='mb-4 flex items-center justify-between'>
-                  <h2 className='text-lg font-semibold'>
-                    {t(dimensionHeading(dimension))}
-                  </h2>
-                  <ToggleGroup
-                    value={dimension}
-                    onValueChange={(value) => {
-                      if (value) setDimension(value as L1Dimension)
-                    }}
-                    variant='outline'
-                    size='sm'
-                  >
-                    <ToggleGroupItem value='model'>
-                      {t('Model')}
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value='key'>
-                      {t('API Key')}
-                    </ToggleGroupItem>
-                    {isAdmin && (
-                      <>
-                        <ToggleGroupItem value='user'>
-                          {t('User')}
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value='channel'>
-                          {t('Channel')}
-                        </ToggleGroupItem>
-                      </>
-                    )}
-                  </ToggleGroup>
-                </div>
+                <ToggleGroup
+                  value={dimension}
+                  onValueChange={(value) => {
+                    if (value) setDimension(value as L1Dimension)
+                  }}
+                  variant='outline'
+                  size='sm'
+                  type='single'
+                  className='mb-4'
+                >
+                  <ToggleGroupItem value='model'>
+                    {t('Model')}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value='key'>
+                    {t('API Key')}
+                  </ToggleGroupItem>
+                  {isAdmin && (
+                    <>
+                      <ToggleGroupItem value='user'>
+                        {t('User')}
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value='channel'>
+                        {t('Channel')}
+                      </ToggleGroupItem>
+                    </>
+                  )}
+                </ToggleGroup>
                 <L1ModelTable
                   data={byDimension}
                   loading={loading}
