@@ -113,6 +113,64 @@ func GetTokenScopeL2Summary(c *gin.Context) {
 	common.ApiSuccess(c, metrics)
 }
 
+// GetTokenScopeL2ByDimension returns L2 diagnostic metrics grouped by dimension for admin.
+func GetTokenScopeL2ByDimension(c *gin.Context) {
+	dimensionStr := c.Query("dimension")
+	if dimensionStr == "" {
+		dimensionStr = "model"
+	}
+	dimension, err := model.ValidateDimension(dimensionStr)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	modelName := c.Query("model_name")
+	username := c.Query("username")
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	group := c.Query("group")
+
+	metrics, err := model.GetTokenScopeL2ByDimension(dimension, startTimestamp, endTimestamp, modelName, username, channel, group, 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, metrics)
+}
+
+// GetTokenScopeSelfL2ByDimension returns L2 diagnostic metrics grouped by dimension for the current user.
+func GetTokenScopeSelfL2ByDimension(c *gin.Context) {
+	dimensionStr := c.Query("dimension")
+	if dimensionStr == "" {
+		dimensionStr = "model"
+	}
+	dimension, err := model.ValidateDimension(dimensionStr)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Non-admin users can only use model and key dimensions
+	if dimension != model.DimensionModel && dimension != model.DimensionKey {
+		common.ApiError(c, fmt.Errorf("dimension not available for non-admin users"))
+		return
+	}
+
+	userId := c.GetInt("id")
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	modelName := c.Query("model_name")
+	group := c.Query("group")
+
+	metrics, err := model.GetTokenScopeL2ByDimension(dimension, startTimestamp, endTimestamp, modelName, "", 0, group, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, metrics)
+}
+
 // GetTokenScopeFilterOptions returns distinct model_name and group values for admin.
 func GetTokenScopeFilterOptions(c *gin.Context) {
 	options, err := model.GetTokenScopeFilterOptions(0)

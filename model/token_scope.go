@@ -401,19 +401,44 @@ func GetTokenScopeL1TimeSeries(startTimestamp, endTimestamp int64, modelName, us
 
 // TokenScopeL2Summary holds aggregated L2 diagnostic metrics.
 type TokenScopeL2Summary struct {
-	SampleCount         int64   `json:"sample_count"`
-	AvgSystemTokens     float64 `json:"avg_system_tokens"`
-	AvgHistoryTokens    float64 `json:"avg_history_tokens"`
-	AvgToolTokens       float64 `json:"avg_tool_tokens"`
-	AvgFileTokens       float64 `json:"avg_file_tokens"`
+	Name              string  `json:"name"`
+	SubId             string  `json:"sub_id,omitempty"`
+	SubName           string  `json:"sub_name,omitempty"`
+	SampleCount       int64   `json:"sample_count"`
+	AvgSystemTokens   float64 `json:"avg_system_tokens"`
+	AvgHistoryTokens  float64 `json:"avg_history_tokens"`
+	AvgToolTokens     float64 `json:"avg_tool_tokens"`
+	AvgFileTokens     float64 `json:"avg_file_tokens"`
 	RepeatedPrefixRate  float64 `json:"repeated_prefix_rate"`
 	CacheFriendliness   float64 `json:"cache_friendliness"`
 	CacheFulfillmentRate float64 `json:"cache_fulfillment_rate"`
 }
 
 // GetTokenScopeL2Summary returns L2 diagnostic metrics grouped by model.
+// Deprecated: Use GetTokenScopeL2ByDimension instead.
 func GetTokenScopeL2Summary(startTimestamp, endTimestamp int64, modelName string, group string) ([]TokenScopeL2Summary, error) {
-	selectCols := "count(DISTINCT rdp.request_id) as sample_count, " +
+	return GetTokenScopeL2ByDimension(DimensionModel, startTimestamp, endTimestamp, modelName, "", 0, group, 0)
+}
+
+// TokenScopeL2Agg holds the raw SQL aggregation results for L2 metrics.
+type TokenScopeL2Agg struct {
+	Name              string  `json:"name"`
+	SubIdCol          int64   `json:"sub_id_col" gorm:"column:sub_id_col"`
+	SampleCount       int64   `json:"sample_count"`
+	AvgSystemTokens   float64 `json:"avg_system_tokens"`
+	AvgHistoryTokens  float64 `json:"avg_history_tokens"`
+	AvgToolTokens     float64 `json:"avg_tool_tokens"`
+	AvgFileTokens     float64 `json:"avg_file_tokens"`
+	RepeatedPrefixRate  float64 `json:"repeated_prefix_rate"`
+	CacheFriendliness   float64 `json:"cache_friendliness"`
+	CacheFulfillmentRate float64 `json:"cache_fulfillment_rate"`
+}
+
+// GetTokenScopeL2ByDimension returns L2 diagnostic metrics grouped by the specified dimension.
+func GetTokenScopeL2ByDimension(dimension Dimension, startTimestamp, endTimestamp int64, modelName, username string, channel int, group string, userId int) ([]TokenScopeL2Summary, error) {
+	cfg := getDimensionConfig(dimension)
+
+	l2Metrics := "count(DISTINCT rdp.request_id) as sample_count, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'system' THEN rc.token_count ELSE NULL END), 0) as avg_system_tokens, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'history' THEN rc.token_count ELSE NULL END), 0) as avg_history_tokens, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'tool' THEN rc.token_count ELSE NULL END), 0) as avg_tool_tokens, " +
@@ -422,11 +447,22 @@ func GetTokenScopeL2Summary(startTimestamp, endTimestamp int64, modelName string
 		"COALESCE(AVG(CASE WHEN rc.is_prefix = true AND rc.is_stable = true THEN 1.0 ELSE 0.0 END), 0) as cache_friendliness, " +
 		"COALESCE(AVG(CASE WHEN rc.is_cache_friendly = true THEN 1.0 ELSE 0.0 END), 0) as cache_fulfillment_rate"
 
+	selectCols := cfg.nameExpr + ", " + l2Metrics
+	if cfg.subIdExpr != "" {
+		selectCols += ", " + cfg.subIdExpr
+	}
+
 	tx := LOG_DB.Table("request_debug_payloads rdp").
 		Joins("INNER JOIN request_context_parts rc ON rc.request_id = rdp.request_id").
 		Select(selectCols).
-		Group("rdp.model_name")
+		Group("rdp." + cfg.groupCol)
 
+	if cfg.excludeWhere != "" {
+		tx = tx.Where("rdp." + cfg.excludeWhere)
+	}
+	if userId > 0 {
+		tx = tx.Where("rdp.user_id = ?", userId)
+	}
 	if startTimestamp != 0 {
 		tx = tx.Where("rdp.created_at >= ?", startTimestamp)
 	}
@@ -436,15 +472,74 @@ func GetTokenScopeL2Summary(startTimestamp, endTimestamp int64, modelName string
 	if modelName != "" {
 		tx = tx.Where("rdp.model_name = ?", modelName)
 	}
+	if username != "" {
+		tx = tx.Where("rdp.username = ?", username)
+	}
+	if channel != 0 {
+		tx = tx.Where("rdp.channel_id = ?", channel)
+	}
 	if group != "" {
-		tx = tx.Where("rdp."+logGroupCol+" = ?", group)
+		tx = tx.Where("rdp." + logGroupCol + " = ?", group)
 	}
 
-	var summaries []TokenScopeL2Summary
-	if err := tx.Scan(&summaries).Error; err != nil {
-		return nil, fmt.Errorf("failed to query L2 summary: %w", err)
+	var aggs []TokenScopeL2Agg
+	if err := tx.Scan(&aggs).Error; err != nil {
+		return nil, fmt.Errorf("failed to query L2 metrics by %s: %w", dimension, err)
 	}
-	return summaries, nil
+
+	results := make([]TokenScopeL2Summary, len(aggs))
+
+	// For channel dimension, batch-resolve channel names
+	if dimension == DimensionChannel {
+		var channelIds []int
+		for i, agg := range aggs {
+			results[i] = l2AggToSummary(agg)
+			if id, err := strconv.Atoi(agg.Name); err == nil && id > 0 {
+				channelIds = append(channelIds, id)
+				results[i].SubId = agg.Name
+			}
+		}
+		if len(channelIds) > 0 {
+			channels, err := GetChannelsByIds(channelIds)
+			if err == nil {
+				channelMap := make(map[int]string, len(channels))
+				for _, ch := range channels {
+					channelMap[ch.Id] = ch.Name
+				}
+				for i := range results {
+					if id, err := strconv.Atoi(results[i].SubId); err == nil {
+						if name, ok := channelMap[id]; ok {
+							results[i].SubName = name
+							results[i].Name = name
+						}
+					}
+				}
+			}
+		}
+	} else {
+		for i, agg := range aggs {
+			results[i] = l2AggToSummary(agg)
+			if agg.SubIdCol > 0 {
+				results[i].SubId = strconv.FormatInt(agg.SubIdCol, 10)
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func l2AggToSummary(agg TokenScopeL2Agg) TokenScopeL2Summary {
+	return TokenScopeL2Summary{
+		Name:               agg.Name,
+		SampleCount:        agg.SampleCount,
+		AvgSystemTokens:    agg.AvgSystemTokens,
+		AvgHistoryTokens:   agg.AvgHistoryTokens,
+		AvgToolTokens:      agg.AvgToolTokens,
+		AvgFileTokens:      agg.AvgFileTokens,
+		RepeatedPrefixRate: agg.RepeatedPrefixRate,
+		CacheFriendliness:  agg.CacheFriendliness,
+		CacheFulfillmentRate: agg.CacheFulfillmentRate,
+	}
 }
 
 // TokenScopeFilterOptions holds the available filter values for the tokenscope UI.

@@ -148,6 +148,9 @@ export async function getTokenScopeL1TimeSeries(
 // ---------------------------------------------------------------------------
 
 export interface TokenScopeL2Summary {
+  name: string
+  sub_id?: string
+  sub_name?: string
   sample_count: number
   avg_system_tokens: number
   avg_history_tokens: number
@@ -194,6 +197,9 @@ export interface L2TimeSeriesParams {
   end_timestamp?: number
   model_name?: string
   group?: string
+  dimension?: L1Dimension
+  channel?: number
+  username?: string
 }
 
 export async function getTokenScopeL2Summary(
@@ -203,6 +209,26 @@ export async function getTokenScopeL2Summary(
     success: boolean
     data: TokenScopeL2Summary[]
   }>('/api/tokenscope/l2/summary', { params })
+  return res.data.data
+}
+
+export async function getTokenScopeL2ByDimension(
+  params: L2TimeSeriesParams = {}
+): Promise<TokenScopeL2Summary[]> {
+  const res = await api.get<{
+    success: boolean
+    data: TokenScopeL2Summary[]
+  }>('/api/tokenscope/l2/by-dimension', { params })
+  return res.data.data
+}
+
+export async function getTokenScopeSelfL2ByDimension(
+  params: Omit<L2TimeSeriesParams, 'channel' | 'username'> = {}
+): Promise<TokenScopeL2Summary[]> {
+  const res = await api.get<{
+    success: boolean
+    data: TokenScopeL2Summary[]
+  }>('/api/tokenscope/self/l2/by-dimension', { params })
   return res.data.data
 }
 

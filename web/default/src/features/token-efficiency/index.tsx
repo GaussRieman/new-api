@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { L1SummaryCards } from './components/l1-summary-cards'
 import { L1ModelTable } from './components/l1-model-table'
+import { L2RequestTable } from './components/l2-request-table'
 import { L2SummaryTable } from './components/l2-summary-table'
 import { FilterBar } from './components/filter-bar'
 import {
@@ -11,8 +12,8 @@ import {
   getTokenScopeL1ByDimension,
   getTokenScopeSelfL1Summary,
   getTokenScopeSelfL1ByDimension,
-  getTokenScopeL2Summary,
-  getTokenScopeSelfL2Recent,
+  getTokenScopeL2ByDimension,
+  getTokenScopeSelfL2ByDimension,
 } from './api'
 import type { TokenScopeL1Metrics, L1FilterState, TokenScopeL2Summary, L1Dimension } from './types'
 import { SectionPageLayout } from '@/components/layout'
@@ -22,7 +23,6 @@ export function TokenEfficiency() {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
 
-  // Default to last 7 days
   const getDefaultFilters = useCallback((): L1FilterState => {
     const end = Math.floor(Date.now() / 1000)
     const start = end - 7 * 24 * 3600
@@ -77,24 +77,24 @@ export function TokenEfficiency() {
       const params: Record<string, unknown> = {
         start_timestamp: filters.startTimestamp,
         end_timestamp: filters.endTimestamp,
+        dimension,
       }
       if (filters.modelName) params.model_name = filters.modelName
       if (filters.group) params.group = filters.group
 
       if (isAdmin) {
-        const l2Data = await getTokenScopeL2Summary(params)
+        const l2Data = await getTokenScopeL2ByDimension(params)
         setL2Summary(l2Data)
       } else {
-        const recent = await getTokenScopeSelfL2Recent({ ...params, limit: 10 })
-        // For non-admin, we show recent requests but no summary
-        setL2Summary([])
+        const l2Data = await getTokenScopeSelfL2ByDimension(params)
+        setL2Summary(l2Data)
       }
     } catch {
       // Error handled silently
     } finally {
       setL2Loading(false)
     }
-  }, [filters, isAdmin])
+  }, [filters, isAdmin, dimension])
 
   useEffect(() => {
     fetchL1Data()
@@ -115,6 +115,35 @@ export function TokenEfficiency() {
 
           <FilterBar filters={filters} onChange={setFilters} />
 
+          <ToggleGroup
+            value={dimension}
+            onValueChange={(value) => {
+              const newDimension = Array.isArray(value) ? value[0] : value
+              if (newDimension) setDimension(newDimension as L1Dimension)
+            }}
+            variant='outline'
+            size='sm'
+            type='single'
+            className='mb-2'
+          >
+            {isAdmin && (
+              <>
+                <ToggleGroupItem value='user'>
+                  {t('User')}
+                </ToggleGroupItem>
+                <ToggleGroupItem value='channel'>
+                  {t('Channel')}
+                </ToggleGroupItem>
+              </>
+            )}
+            <ToggleGroupItem value='key'>
+              {t('API Key')}
+            </ToggleGroupItem>
+            <ToggleGroupItem value='model'>
+              {t('Model')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+
           <Tabs defaultValue='l1'>
             <TabsList>
               <TabsTrigger value='l1'>{t('L1 Monitoring')}</TabsTrigger>
@@ -125,50 +154,28 @@ export function TokenEfficiency() {
 
             <TabsContent value='l1' className='space-y-6'>
               <L1SummaryCards data={summary} loading={loading} />
-              <div>
-                <ToggleGroup
-                  value={dimension}
-                  onValueChange={(value) => {
-                    const newDimension = Array.isArray(value) ? value[0] : value
-                    if (newDimension) setDimension(newDimension as L1Dimension)
-                  }}
-                  variant='outline'
-                  size='sm'
-                  type='single'
-                  className='mb-4'
-                >
-                  {isAdmin && (
-                    <>
-                      <ToggleGroupItem value='user'>
-                        {t('User')}
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value='channel'>
-                        {t('Channel')}
-                      </ToggleGroupItem>
-                    </>
-                  )}
-                  <ToggleGroupItem value='key'>
-                    {t('API Key')}
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value='model'>
-                    {t('Model')}
-                  </ToggleGroupItem>
-                </ToggleGroup>
-                <L1ModelTable
-                  data={byDimension}
-                  loading={loading}
-                  dimension={dimension}
-                />
-              </div>
+              <L1ModelTable
+                data={byDimension}
+                loading={loading}
+                dimension={dimension}
+              />
             </TabsContent>
 
             <TabsContent value='l2' className='space-y-6'>
-              <div>
-                <h2 className='mb-4 text-lg font-semibold'>
-                  {t('L2 Deep Diagnostics')}
-                </h2>
-                <L2SummaryTable data={l2Summary} loading={l2Loading} />
-              </div>
+              <L2RequestTable
+                filters={filters}
+                dimension={dimension}
+                loading={l2Loading}
+                summaryData={l2Summary}
+              />
+              {l2Summary.length > 0 && (
+                <div>
+                  <h3 className='mb-3 text-sm font-medium text-muted-foreground'>
+                    {t('Aggregate Summary')}
+                  </h3>
+                  <L2SummaryTable data={l2Summary} loading={l2Loading} />
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
