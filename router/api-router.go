@@ -312,6 +312,20 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
+		tokenscopeRoute := apiRouter.Group("/tokenscope")
+		{
+			tokenscopeRoute.GET("/l1/summary", middleware.AdminAuth(), controller.GetTokenScopeL1Summary)
+			tokenscopeRoute.GET("/l1/by-model", middleware.AdminAuth(), controller.GetTokenScopeL1ByModel)
+			tokenscopeRoute.GET("/l1/timeseries", middleware.AdminAuth(), controller.GetTokenScopeL1TimeSeries)
+			tokenscopeRoute.GET("/self/l1/summary", middleware.UserAuth(), controller.GetTokenScopeSelfL1Summary)
+			tokenscopeRoute.GET("/self/l1/by-model", middleware.UserAuth(), controller.GetTokenScopeSelfL1ByModel)
+			// L2 deep diagnostics (admin only for security - contains raw request content)
+			tokenscopeRoute.GET("/l2/summary", middleware.AdminAuth(), controller.GetTokenScopeL2Summary)
+			tokenscopeRoute.GET("/l2/recent", middleware.AdminAuth(), controller.GetTokenScopeL2RecentRequests)
+			tokenscopeRoute.GET("/l2/request/:request_id", middleware.AdminAuth(), controller.GetTokenScopeL2RequestDetail)
+			tokenscopeRoute.GET("/self/l2/recent", middleware.UserAuth(), controller.GetTokenScopeSelfL2RecentRequests)
+		}
+
 		dataRoute := apiRouter.Group("/data")
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
 		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)

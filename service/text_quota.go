@@ -12,8 +12,10 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/pkg/tokenscope"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/tokenscope_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -66,6 +68,15 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 		return splitCacheWriteTokens
 	}
 	return summary.CacheCreationTokens
+}
+
+// usageInputTokens returns the normalized total input tokens from the usage response.
+// Returns 0 when usage is nil or the field is not populated.
+func usageInputTokens(usage *dto.Usage) int {
+	if usage == nil {
+		return 0
+	}
+	return usage.InputTokens
 }
 
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
@@ -472,8 +483,16 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		IsStream:         relayInfo.IsStream,
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
+		CacheReadTokens:  summary.CacheTokens,
+		CacheWriteTokens: cacheWriteTokensTotal(summary),
+		InputTokensTotal: usageInputTokens(usage),
 	})
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
+		// L2 debug capture: sample request body for deep diagnostics
+		reason := tokenscope.DetermineSamplingReason(relayInfo, summary.PromptTokens, summary.CompletionTokens)
+		if reason != "" || tokenscope_setting.GetTokenScopeSetting().Enabled {
+			tokenscope.MaybeCaptureRequest(ctx, relayInfo)
+		}
 	})
 }

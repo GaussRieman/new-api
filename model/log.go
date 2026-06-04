@@ -53,6 +53,10 @@ type Log struct {
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
+	// TokenScope L1 columns — cache token breakdown for SQL aggregation
+	CacheReadTokens  int `json:"cache_read_tokens" gorm:"default:0"`
+	CacheWriteTokens int `json:"cache_write_tokens" gorm:"default:0"`
+	InputTokensTotal int `json:"input_tokens_total" gorm:"default:0"`
 }
 
 // don't use iota, avoid change log type value
@@ -217,6 +221,10 @@ type RecordConsumeLogParams struct {
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
 	Other            map[string]interface{} `json:"other"`
+	// TokenScope L1 fields — cache token breakdown
+	CacheReadTokens  int `json:"cache_read_tokens"`
+	CacheWriteTokens int `json:"cache_write_tokens"`
+	InputTokensTotal int `json:"input_tokens_total"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -260,6 +268,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
+		CacheReadTokens:   params.CacheReadTokens,
+		CacheWriteTokens:  params.CacheWriteTokens,
+		InputTokensTotal:  params.InputTokensTotal,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {

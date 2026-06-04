@@ -513,6 +513,9 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 		IsStream:         info.IsStream,
 		Group:            info.UsingGroup,
 		Other:            other,
+		CacheReadTokens:  0,
+		CacheWriteTokens: 0,
+		InputTokensTotal: 0,
 	})
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
