@@ -137,12 +137,6 @@ export function TokenEfficiency() {
                   type='single'
                   className='mb-4'
                 >
-                  <ToggleGroupItem value='model'>
-                    {t('Model')}
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value='key'>
-                    {t('API Key')}
-                  </ToggleGroupItem>
                   {isAdmin && (
                     <>
                       <ToggleGroupItem value='user'>
@@ -153,6 +147,12 @@ export function TokenEfficiency() {
                       </ToggleGroupItem>
                     </>
                   )}
+                  <ToggleGroupItem value='key'>
+                    {t('API Key')}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value='model'>
+                    {t('Model')}
+                  </ToggleGroupItem>
                 </ToggleGroup>
                 <L1ModelTable
                   data={byDimension}
