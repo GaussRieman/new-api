@@ -140,6 +140,7 @@ func GetTokenScopeL1ByDimension(c *gin.Context) {
 	if dimensionStr == "" {
 		dimensionStr = "model"
 	}
+	common.LogInfo(fmt.Sprintf("GetTokenScopeL1ByDimension called with dimension: %s", dimensionStr))
 	dimension, err := model.ValidateDimension(dimensionStr)
 	if err != nil {
 		common.ApiError(c, err)
@@ -153,11 +154,13 @@ func GetTokenScopeL1ByDimension(c *gin.Context) {
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
 
+	common.LogInfo(fmt.Sprintf("GetTokenScopeL1ByDimension: start=%d, end=%d, modelName=%s, group=%s", startTimestamp, endTimestamp, modelName, group))
 	metrics, err := model.GetTokenScopeL1ByDimension(dimension, startTimestamp, endTimestamp, modelName, username, channel, group)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	common.LogInfo(fmt.Sprintf("GetTokenScopeL1ByDimension: returning %d records", len(metrics)))
 	common.ApiSuccess(c, metrics)
 }
 

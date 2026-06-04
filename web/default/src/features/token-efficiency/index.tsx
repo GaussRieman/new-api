@@ -53,6 +53,7 @@ export function TokenEfficiency() {
       if (filters.modelName) params.model_name = filters.modelName
       if (filters.group) params.group = filters.group
 
+      console.log('[tokenscope] fetching L1, dimension:', dimension, 'params:', params)
       const [summaryData, byDimensionData] = await Promise.all([
         isAdmin
           ? getTokenScopeL1Summary(params)
@@ -61,11 +62,12 @@ export function TokenEfficiency() {
           ? getTokenScopeL1ByDimension(params)
           : getTokenScopeSelfL1ByDimension(params),
       ])
+      console.log('[tokenscope] received by-dimension data count:', byDimensionData?.length, 'first name:', byDimensionData?.[0]?.name, 'dimension:', byDimensionData?.[0]?.dimension)
 
       setSummary(summaryData)
       setByDimension(byDimensionData)
-    } catch {
-      // Error handled silently; cards show "-"
+    } catch (e) {
+      console.error('[tokenscope] L1 fetch error:', e)
     } finally {
       setLoading(false)
     }
@@ -129,6 +131,7 @@ export function TokenEfficiency() {
                 <ToggleGroup
                   value={dimension}
                   onValueChange={(value) => {
+                    console.log('[tokenscope] dimension toggle clicked, new value:', value)
                     if (value) setDimension(value as L1Dimension)
                   }}
                   variant='outline'
