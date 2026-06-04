@@ -166,9 +166,8 @@ export function TokenEfficiency() {
                 filters={filters}
                 dimension={dimension}
                 loading={l2Loading}
-                summaryData={l2Summary}
               />
-              {l2Summary.length > 0 && (
+              {l2Summary && l2Summary.length > 0 && (
                 <div>
                   <h3 className='mb-3 text-sm font-medium text-muted-foreground'>
                     {t('Aggregate Summary')}

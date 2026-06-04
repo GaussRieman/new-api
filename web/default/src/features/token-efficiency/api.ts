@@ -209,7 +209,7 @@ export async function getTokenScopeL2Summary(
     success: boolean
     data: TokenScopeL2Summary[]
   }>('/api/tokenscope/l2/summary', { params })
-  return res.data.data
+  return res.data.data || []
 }
 
 export async function getTokenScopeL2ByDimension(
@@ -219,7 +219,7 @@ export async function getTokenScopeL2ByDimension(
     success: boolean
     data: TokenScopeL2Summary[]
   }>('/api/tokenscope/l2/by-dimension', { params })
-  return res.data.data
+  return res.data.data || []
 }
 
 export async function getTokenScopeSelfL2ByDimension(
@@ -229,7 +229,7 @@ export async function getTokenScopeSelfL2ByDimension(
     success: boolean
     data: TokenScopeL2Summary[]
   }>('/api/tokenscope/self/l2/by-dimension', { params })
-  return res.data.data
+  return res.data.data || []
 }
 
 export async function getTokenScopeL2Recent(
@@ -239,7 +239,7 @@ export async function getTokenScopeL2Recent(
     success: boolean
     data: RequestDebugPayload[]
   }>('/api/tokenscope/l2/recent', { params })
-  return res.data.data
+  return res.data.data || []
 }
 
 export async function getTokenScopeL2RequestDetail(
@@ -259,5 +259,5 @@ export async function getTokenScopeSelfL2Recent(
     success: boolean
     data: RequestDebugPayload[]
   }>('/api/tokenscope/self/l2/recent', { params })
-  return res.data.data
+  return res.data.data || []
 }
