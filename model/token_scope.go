@@ -422,7 +422,7 @@ func GetTokenScopeL2Summary(startTimestamp, endTimestamp int64, modelName string
 		"COALESCE(AVG(CASE WHEN rc.is_prefix = true AND rc.is_stable = true THEN 1.0 ELSE 0.0 END), 0) as cache_friendliness, " +
 		"COALESCE(AVG(CASE WHEN rc.is_cache_friendly = true THEN 1.0 ELSE 0.0 END), 0) as cache_fulfillment_rate"
 
-	tx := LOG_DB.Table("request_debug_payload rdp").
+	tx := LOG_DB.Table("request_debug_payloads rdp").
 		Joins("INNER JOIN request_context_parts rc ON rc.request_id = rdp.request_id").
 		Select(selectCols).
 		Group("rdp.model_name")
