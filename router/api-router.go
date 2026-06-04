@@ -321,6 +321,8 @@ func SetApiRouter(router *gin.Engine) {
 			tokenscopeRoute.GET("/self/filters", middleware.UserAuth(), controller.GetTokenScopeSelfFilterOptions)
 			tokenscopeRoute.GET("/self/l1/summary", middleware.UserAuth(), controller.GetTokenScopeSelfL1Summary)
 			tokenscopeRoute.GET("/self/l1/by-model", middleware.UserAuth(), controller.GetTokenScopeSelfL1ByModel)
+			tokenscopeRoute.GET("/l1/by-dimension", middleware.AdminAuth(), controller.GetTokenScopeL1ByDimension)
+			tokenscopeRoute.GET("/self/l1/by-dimension", middleware.UserAuth(), controller.GetTokenScopeSelfL1ByDimension)
 			// L2 deep diagnostics (admin only for security - contains raw request content)
 			tokenscopeRoute.GET("/l2/summary", middleware.AdminAuth(), controller.GetTokenScopeL2Summary)
 			tokenscopeRoute.GET("/l2/recent", middleware.AdminAuth(), controller.GetTokenScopeL2RecentRequests)

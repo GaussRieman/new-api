@@ -1,21 +1,35 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { L1SummaryCards } from './components/l1-summary-cards'
 import { L1ModelTable } from './components/l1-model-table'
 import { L2SummaryTable } from './components/l2-summary-table'
 import { FilterBar } from './components/filter-bar'
 import {
   getTokenScopeL1Summary,
-  getTokenScopeL1ByModel,
+  getTokenScopeL1ByDimension,
   getTokenScopeSelfL1Summary,
-  getTokenScopeSelfL1ByModel,
+  getTokenScopeSelfL1ByDimension,
   getTokenScopeL2Summary,
   getTokenScopeSelfL2Recent,
 } from './api'
-import type { TokenScopeL1Metrics, L1FilterState, TokenScopeL2Summary } from './types'
+import type { TokenScopeL1Metrics, L1FilterState, TokenScopeL2Summary, L1Dimension } from './types'
 import { SectionPageLayout } from '@/components/layout'
 import { useIsAdmin } from '@/hooks/use-admin'
+
+function dimensionHeading(d: L1Dimension): string {
+  switch (d) {
+    case 'model':
+      return 'By Model'
+    case 'user':
+      return 'By User'
+    case 'key':
+      return 'By API Key'
+    case 'channel':
+      return 'By Channel'
+  }
+}
 
 export function TokenEfficiency() {
   const { t } = useTranslation()
@@ -34,8 +48,9 @@ export function TokenEfficiency() {
   }, [])
 
   const [filters, setFilters] = useState<L1FilterState>(getDefaultFilters)
+  const [dimension, setDimension] = useState<L1Dimension>('model')
   const [summary, setSummary] = useState<TokenScopeL1Metrics | null>(null)
-  const [byModel, setByModel] = useState<TokenScopeL1Metrics[]>([])
+  const [byDimension, setByDimension] = useState<TokenScopeL1Metrics[]>([])
   const [l2Summary, setL2Summary] = useState<TokenScopeL2Summary[]>([])
   const [loading, setLoading] = useState(false)
   const [l2Loading, setL2Loading] = useState(false)
@@ -46,27 +61,28 @@ export function TokenEfficiency() {
       const params: Record<string, unknown> = {
         start_timestamp: filters.startTimestamp,
         end_timestamp: filters.endTimestamp,
+        dimension,
       }
       if (filters.modelName) params.model_name = filters.modelName
       if (filters.group) params.group = filters.group
 
-      const [summaryData, byModelData] = await Promise.all([
+      const [summaryData, byDimensionData] = await Promise.all([
         isAdmin
           ? getTokenScopeL1Summary(params)
           : getTokenScopeSelfL1Summary(params),
         isAdmin
-          ? getTokenScopeL1ByModel(params)
-          : getTokenScopeSelfL1ByModel(params),
+          ? getTokenScopeL1ByDimension(params)
+          : getTokenScopeSelfL1ByDimension(params),
       ])
 
       setSummary(summaryData)
-      setByModel(byModelData)
+      setByDimension(byDimensionData)
     } catch {
       // Error handled silently; cards show "-"
     } finally {
       setLoading(false)
     }
-  }, [filters, isAdmin])
+  }, [filters, isAdmin, dimension])
 
   const fetchL2Data = useCallback(async () => {
     setL2Loading(true)
@@ -97,6 +113,10 @@ export function TokenEfficiency() {
     fetchL1Data()
   }, [fetchL1Data])
 
+  useEffect(() => {
+    fetchL2Data()
+  }, [fetchL2Data])
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Cost Analysis')}</SectionPageLayout.Title>
@@ -119,8 +139,41 @@ export function TokenEfficiency() {
             <TabsContent value='l1' className='space-y-6'>
               <L1SummaryCards data={summary} loading={loading} />
               <div>
-                <h2 className='mb-4 text-lg font-semibold'>{t('By Model')}</h2>
-                <L1ModelTable data={byModel} loading={loading} />
+                <div className='mb-4 flex items-center justify-between'>
+                  <h2 className='text-lg font-semibold'>
+                    {t(dimensionHeading(dimension))}
+                  </h2>
+                  <ToggleGroup
+                    value={dimension}
+                    onValueChange={(value) => {
+                      if (value) setDimension(value as L1Dimension)
+                    }}
+                    variant='outline'
+                    size='sm'
+                  >
+                    <ToggleGroupItem value='model'>
+                      {t('Model')}
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value='key'>
+                      {t('API Key')}
+                    </ToggleGroupItem>
+                    {isAdmin && (
+                      <>
+                        <ToggleGroupItem value='user'>
+                          {t('User')}
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value='channel'>
+                          {t('Channel')}
+                        </ToggleGroupItem>
+                      </>
+                    )}
+                  </ToggleGroup>
+                </div>
+                <L1ModelTable
+                  data={byDimension}
+                  loading={loading}
+                  dimension={dimension}
+                />
               </div>
             </TabsContent>
 

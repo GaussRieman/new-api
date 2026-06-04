@@ -4560,6 +4560,9 @@
     "requests": "requests",
     "{{count}} requests": "{{count}} requests",
     "Input {{input}} · Output {{output}}": "Input {{input}} · Output {{output}}",
-    "Cache read {{count}} tokens": "Cache read {{count}} tokens"
+    "Cache read {{count}} tokens": "Cache read {{count}} tokens",
+    "By User": "By User",
+    "By API Key": "By API Key",
+    "By Channel": "By Channel"
   }
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
@@ -131,6 +132,64 @@ func GetTokenScopeSelfFilterOptions(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, options)
+}
+
+// GetTokenScopeL1ByDimension returns L1 metrics grouped by the specified dimension for admin.
+func GetTokenScopeL1ByDimension(c *gin.Context) {
+	dimensionStr := c.Query("dimension")
+	if dimensionStr == "" {
+		dimensionStr = "model"
+	}
+	dimension, err := model.ValidateDimension(dimensionStr)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	modelName := c.Query("model_name")
+	username := c.Query("username")
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	group := c.Query("group")
+
+	metrics, err := model.GetTokenScopeL1ByDimension(dimension, startTimestamp, endTimestamp, modelName, username, channel, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, metrics)
+}
+
+// GetTokenScopeSelfL1ByDimension returns L1 metrics grouped by the specified dimension for the current user.
+func GetTokenScopeSelfL1ByDimension(c *gin.Context) {
+	dimensionStr := c.Query("dimension")
+	if dimensionStr == "" {
+		dimensionStr = "model"
+	}
+	dimension, err := model.ValidateDimension(dimensionStr)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Non-admin users can only use model and key dimensions
+	if dimension != model.DimensionModel && dimension != model.DimensionKey {
+		common.ApiError(c, fmt.Errorf("dimension not available for non-admin users"))
+		return
+	}
+
+	userId := c.GetInt("id")
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	modelName := c.Query("model_name")
+	group := c.Query("group")
+
+	metrics, err := model.GetUserTokenScopeL1ByDimension(dimension, userId, startTimestamp, endTimestamp, modelName, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, metrics)
 }
 
 // GetTokenScopeL2RequestDetail returns the context parts for a specific request.

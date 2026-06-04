@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type { TokenScopeL1Metrics } from '../api'
+import type { TokenScopeL1Metrics, L1Dimension } from '../api'
 import {
   formatOutputCost,
   formatContextLoad,
@@ -41,6 +41,7 @@ type SortDirection = 'asc' | 'desc'
 interface L1ModelTableProps {
   data: TokenScopeL1Metrics[]
   loading: boolean
+  dimension: L1Dimension
 }
 
 /** Numeric columns that support sorting */
@@ -55,7 +56,7 @@ const SORTABLE_COLUMNS: SortKey[] = [
   'total_cache_read',
 ]
 
-export function L1ModelTable({ data, loading }: L1ModelTableProps) {
+export function L1ModelTable({ data, loading, dimension }: L1ModelTableProps) {
   const { t } = useTranslation()
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
@@ -79,6 +80,13 @@ export function L1ModelTable({ data, loading }: L1ModelTableProps) {
         : (bv as number) - (av as number)
     })
   }, [data, sortKey, sortDirection])
+
+  const dimensionLabel: Record<L1Dimension, string> = {
+    model: t('Model'),
+    user: t('User'),
+    key: t('API Key'),
+    channel: t('Channel'),
+  }
 
   const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
     const active = sortKey === columnKey
@@ -126,6 +134,34 @@ export function L1ModelTable({ data, loading }: L1ModelTableProps) {
     </TableHead>
   )
 
+  const renderNameCell = (row: TokenScopeL1Metrics) => {
+    if (dimension === 'channel') {
+      return (
+        <TableCell className='font-medium'>
+          {row.sub_name || row.name}
+          {row.sub_id && (
+            <span className='ml-1 text-xs text-muted-foreground'>
+              #{row.sub_id}
+            </span>
+          )}
+        </TableCell>
+      )
+    }
+    if (dimension === 'user' || dimension === 'key') {
+      return (
+        <TableCell className='font-medium'>
+          {row.name}
+          {row.sub_id && (
+            <span className='ml-1 text-xs text-muted-foreground'>
+              #{row.sub_id}
+            </span>
+          )}
+        </TableCell>
+      )
+    }
+    return <TableCell className='font-medium'>{row.name}</TableCell>
+  }
+
   if (loading) {
     return (
       <div className='space-y-2'>
@@ -149,7 +185,7 @@ export function L1ModelTable({ data, loading }: L1ModelTableProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('Model')}</TableHead>
+            <TableHead>{dimensionLabel[dimension]}</TableHead>
             <SortableHead columnKey='request_count' label={t('Requests')} />
             <SortableHead columnKey='output_cost' label={t('Output Cost')} />
             <SortableHead columnKey='context_load' label={t('Context Load')} />
@@ -162,8 +198,8 @@ export function L1ModelTable({ data, loading }: L1ModelTableProps) {
         </TableHeader>
         <TableBody>
           {sortedData.map((row) => (
-            <TableRow key={row.model_name}>
-              <TableCell className='font-medium'>{row.model_name}</TableCell>
+            <TableRow key={row.name + (row.sub_id ?? '')}>
+              {renderNameCell(row)}
               <TableCell className='text-right'>
                 {row.request_count?.toLocaleString() ?? '-'}
               </TableCell>

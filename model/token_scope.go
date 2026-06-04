@@ -2,13 +2,35 @@ package model
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
+// Dimension identifies the grouping axis for L1 queries.
+type Dimension string
+
+const (
+	DimensionModel   Dimension = "model"
+	DimensionUser    Dimension = "user"
+	DimensionKey     Dimension = "key"
+	DimensionChannel Dimension = "channel"
+)
+
+// ValidateDimension checks if the dimension string is valid.
+func ValidateDimension(d string) (Dimension, error) {
+	switch Dimension(d) {
+	case DimensionModel, DimensionUser, DimensionKey, DimensionChannel:
+		return Dimension(d), nil
+	default:
+		return "", fmt.Errorf("invalid dimension: %s", d)
+	}
+}
+
 // TokenScopeL1Agg holds the raw SQL aggregation results for L1 metrics.
 type TokenScopeL1Agg struct {
-	ModelName         string `json:"model_name"`
+	Name              string `json:"name"`
+	SubIdCol          int64  `json:"sub_id_col" gorm:"column:sub_id_col"`
 	Bucket            string `json:"bucket"` // Used for timeseries queries
 	RequestCount      int64  `json:"request_count"`
 	TotalQuota        int64  `json:"total_quota"`
@@ -21,11 +43,14 @@ type TokenScopeL1Agg struct {
 
 // TokenScopeL1Metrics holds the computed L1 metrics with derived ratios.
 type TokenScopeL1Metrics struct {
-	ModelName         string  `json:"model_name"`
+	Name              string  `json:"name"`
+	Dimension         string  `json:"dimension"`
+	SubId             string  `json:"sub_id,omitempty"`
+	SubName           string  `json:"sub_name,omitempty"`
 	RequestCount      int64   `json:"request_count"`
-	OutputCost        float64 `json:"output_cost"`       // quota / completion_tokens
-	ContextLoad       float64 `json:"context_load"`      // prompt_tokens / completion_tokens
-	CacheReuseRate    float64 `json:"cache_reuse_rate"`  // cache_read / (prompt_tokens + cache_read)
+	OutputCost        float64 `json:"output_cost"`
+	ContextLoad       float64 `json:"context_load"`
+	CacheReuseRate    float64 `json:"cache_reuse_rate"`
 	TotalQuota        int64   `json:"total_quota"`
 	TotalPromptTokens int64   `json:"total_prompt_tokens"`
 	TotalOutputTokens int64   `json:"total_output_tokens"`
@@ -52,7 +77,7 @@ type TokenScopeL1TimePoint struct {
 // aggToMetrics converts a raw aggregation result into computed L1 metrics.
 func aggToMetrics(agg TokenScopeL1Agg) TokenScopeL1Metrics {
 	m := TokenScopeL1Metrics{
-		ModelName:         agg.ModelName,
+		Name:              agg.Name,
 		RequestCount:      agg.RequestCount,
 		TotalQuota:        agg.TotalQuota,
 		TotalPromptTokens: agg.TotalPromptTokens,
@@ -71,18 +96,70 @@ func aggToMetrics(agg TokenScopeL1Agg) TokenScopeL1Metrics {
 	return m
 }
 
-// GetTokenScopeL1ByModel returns L1 metrics grouped by model_name.
-func GetTokenScopeL1ByModel(startTimestamp, endTimestamp int64, modelName, username string, channel int, group string) ([]TokenScopeL1Metrics, error) {
-	return getTokenScopeL1ByModel(startTimestamp, endTimestamp, modelName, username, channel, group, 0)
+// dimensionConfig holds SQL expressions for a given grouping dimension.
+type dimensionConfig struct {
+	nameExpr  string // SELECT ... as name
+	groupCol  string // GROUP BY column
+	excludeWhere string // e.g. "username != ''"
+	subIdExpr string // e.g. "MIN(user_id) as sub_id_col" — empty if not needed
 }
 
-// GetUserTokenScopeL1ByModel returns L1 metrics grouped by model_name for a specific user.
-func GetUserTokenScopeL1ByModel(userId int, startTimestamp, endTimestamp int64, modelName string, group string) ([]TokenScopeL1Metrics, error) {
-	return getTokenScopeL1ByModel(startTimestamp, endTimestamp, modelName, "", 0, group, userId)
+// getDimensionConfig returns the SQL configuration for a given dimension.
+func getDimensionConfig(dimension Dimension) dimensionConfig {
+	switch dimension {
+	case DimensionModel:
+		return dimensionConfig{
+			nameExpr:  "model_name as name",
+			groupCol:  "model_name",
+			excludeWhere: "model_name != ''",
+		}
+	case DimensionUser:
+		return dimensionConfig{
+			nameExpr:  "username as name",
+			groupCol:  "username",
+			excludeWhere: "username != ''",
+			subIdExpr: "MIN(user_id) as sub_id_col",
+		}
+	case DimensionKey:
+		return dimensionConfig{
+			nameExpr:  "token_name as name",
+			groupCol:  "token_name",
+			excludeWhere: "token_name != ''",
+			subIdExpr: "MIN(token_id) as sub_id_col",
+		}
+	case DimensionChannel:
+		nameExpr := "CAST(channel_id AS CHAR) as name"
+		if common.UsingPostgreSQL {
+			nameExpr = "channel_id::text as name"
+		}
+		return dimensionConfig{
+			nameExpr:  nameExpr,
+			groupCol:  "channel_id",
+			excludeWhere: "channel_id != 0",
+		}
+	default:
+		return dimensionConfig{
+			nameExpr:  "model_name as name",
+			groupCol:  "model_name",
+			excludeWhere: "model_name != ''",
+		}
+	}
 }
 
-func getTokenScopeL1ByModel(startTimestamp, endTimestamp int64, modelName, username string, channel int, group string, userId int) ([]TokenScopeL1Metrics, error) {
-	selectCols := "model_name, count(*) as request_count, " +
+// GetTokenScopeL1ByDimension returns L1 metrics grouped by the specified dimension (admin).
+func GetTokenScopeL1ByDimension(dimension Dimension, startTimestamp, endTimestamp int64, modelName, username string, channel int, group string) ([]TokenScopeL1Metrics, error) {
+	return getTokenScopeL1ByDimension(dimension, startTimestamp, endTimestamp, modelName, username, channel, group, 0)
+}
+
+// GetUserTokenScopeL1ByDimension returns L1 metrics grouped by the specified dimension for a specific user.
+func GetUserTokenScopeL1ByDimension(dimension Dimension, userId int, startTimestamp, endTimestamp int64, modelName string, group string) ([]TokenScopeL1Metrics, error) {
+	return getTokenScopeL1ByDimension(dimension, startTimestamp, endTimestamp, modelName, "", 0, group, userId)
+}
+
+func getTokenScopeL1ByDimension(dimension Dimension, startTimestamp, endTimestamp int64, modelName, username string, channel int, group string, userId int) ([]TokenScopeL1Metrics, error) {
+	cfg := getDimensionConfig(dimension)
+
+	selectCols := cfg.nameExpr + ", count(*) as request_count, " +
 		"COALESCE(SUM(quota),0) as total_quota, " +
 		"COALESCE(SUM(prompt_tokens),0) as total_prompt_tokens, " +
 		"COALESCE(SUM(completion_tokens),0) as total_output_tokens, " +
@@ -90,9 +167,16 @@ func getTokenScopeL1ByModel(startTimestamp, endTimestamp int64, modelName, usern
 		"COALESCE(SUM(cache_write_tokens),0) as total_cache_write, " +
 		"COALESCE(SUM(input_tokens_total),0) as total_input_tokens"
 
+	if cfg.subIdExpr != "" {
+		selectCols += ", " + cfg.subIdExpr
+	}
+
 	tx := LOG_DB.Table("logs").Select(selectCols)
 	tx = tx.Where("type = ?", LogTypeConsume)
 
+	if cfg.excludeWhere != "" {
+		tx = tx.Where(cfg.excludeWhere)
+	}
 	if userId > 0 {
 		tx = tx.Where("user_id = ?", userId)
 	}
@@ -116,15 +200,62 @@ func getTokenScopeL1ByModel(startTimestamp, endTimestamp int64, modelName, usern
 	}
 
 	var aggs []TokenScopeL1Agg
-	if err := tx.Group("model_name").Scan(&aggs).Error; err != nil {
-		return nil, fmt.Errorf("failed to query L1 metrics by model: %w", err)
+	if err := tx.Group(cfg.groupCol).Scan(&aggs).Error; err != nil {
+		return nil, fmt.Errorf("failed to query L1 metrics by %s: %w", dimension, err)
 	}
 
 	results := make([]TokenScopeL1Metrics, len(aggs))
-	for i, agg := range aggs {
-		results[i] = aggToMetrics(agg)
+
+	// For channel dimension, batch-resolve channel names
+	var channelIds []int
+	if dimension == DimensionChannel {
+		for i, agg := range aggs {
+			id, _ := strconv.Atoi(agg.Name)
+			if id > 0 {
+				channelIds = append(channelIds, id)
+			}
+			// Pre-convert: store channel_id as sub_id
+			results[i] = aggToMetrics(agg)
+			results[i].Dimension = string(dimension)
+			results[i].SubId = agg.Name
+		}
+		if len(channelIds) > 0 {
+			channels, err := GetChannelsByIds(channelIds)
+			if err == nil {
+				channelMap := make(map[int]string, len(channels))
+				for _, ch := range channels {
+					channelMap[ch.Id] = ch.Name
+				}
+				for i := range results {
+					id, _ := strconv.Atoi(results[i].SubId)
+					if name, ok := channelMap[id]; ok {
+						results[i].SubName = name
+						results[i].Name = name
+					}
+				}
+			}
+		}
+	} else {
+		for i, agg := range aggs {
+			results[i] = aggToMetrics(agg)
+			results[i].Dimension = string(dimension)
+			if agg.SubIdCol > 0 {
+				results[i].SubId = strconv.FormatInt(agg.SubIdCol, 10)
+			}
+		}
 	}
+
 	return results, nil
+}
+
+// GetTokenScopeL1ByModel returns L1 metrics grouped by model_name (backward-compatible wrapper).
+func GetTokenScopeL1ByModel(startTimestamp, endTimestamp int64, modelName, username string, channel int, group string) ([]TokenScopeL1Metrics, error) {
+	return getTokenScopeL1ByDimension(DimensionModel, startTimestamp, endTimestamp, modelName, username, channel, group, 0)
+}
+
+// GetUserTokenScopeL1ByModel returns L1 metrics grouped by model_name for a specific user (backward-compatible wrapper).
+func GetUserTokenScopeL1ByModel(userId int, startTimestamp, endTimestamp int64, modelName string, group string) ([]TokenScopeL1Metrics, error) {
+	return getTokenScopeL1ByDimension(DimensionModel, startTimestamp, endTimestamp, modelName, "", 0, group, userId)
 }
 
 // GetTokenScopeL1Summary returns the overall L1 metrics (all models combined).
@@ -138,7 +269,7 @@ func GetUserTokenScopeL1Summary(userId int, startTimestamp, endTimestamp int64, 
 }
 
 func getTokenScopeL1Summary(startTimestamp, endTimestamp int64, modelName, username string, channel int, group string, userId int) (*TokenScopeL1Metrics, error) {
-	selectCols := "'(all)' as model_name, count(*) as request_count, " +
+	selectCols := "'(all)' as name, count(*) as request_count, " +
 		"COALESCE(SUM(quota),0) as total_quota, " +
 		"COALESCE(SUM(prompt_tokens),0) as total_prompt_tokens, " +
 		"COALESCE(SUM(completion_tokens),0) as total_output_tokens, " +
@@ -282,7 +413,6 @@ type TokenScopeL2Summary struct {
 
 // GetTokenScopeL2Summary returns L2 diagnostic metrics grouped by model.
 func GetTokenScopeL2Summary(startTimestamp, endTimestamp int64, modelName string, group string) ([]TokenScopeL2Summary, error) {
-	// L2 metrics are computed from request_context_parts joined with request_debug_payload
 	selectCols := "count(DISTINCT rdp.request_id) as sample_count, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'system' THEN rc.token_count ELSE NULL END), 0) as avg_system_tokens, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'history' THEN rc.token_count ELSE NULL END), 0) as avg_history_tokens, " +

@@ -71,3 +71,23 @@
   - 产出成本：`每 1K 输出 Token 的成本` → `每千输出 Token 成本`
   - 上下文负载：`每输出 1 Token 的输入 Token 数` → `输入与输出 Token 比值`
   - 缓存复用率：`输入中来自缓存的比例` → `输入 Token 的缓存命中占比`
+
+## [Unreleased] — TokenScope L1 多维度分组
+
+### 新增
+
+- **L1 多维度分组**：L1 明细表新增 ToggleGroup 切换分组维度
+  - 按模型（默认）、按 API Key、按用户（仅管理员）、按渠道（仅管理员）
+  - 各维度首列自动适配：显示名称 + 关联 ID（如 username #user_id）
+  - 渠道维度自动解析 channel name 并展示
+
+- **后端 API**：
+  - `/api/tokenscope/l1/by-dimension?dimension=model|user|key|channel` — L1 按维度分组（admin）
+  - `/api/tokenscope/self/l1/by-dimension?dimension=model|key` — L1 当前用户按维度分组
+  - 通用查询函数 `getTokenScopeL1ByDimension`，按 dimension 动态选择 GROUP BY 列
+  - 渠道维度自动批量查询 channel name（`GetChannelsByIds`）
+  - PostgreSQL 兼容：`channel_id::text` 替代 `CAST(channel_id AS CHAR)`
+
+- **数据结构变更**：`TokenScopeL1Metrics` 新增 `name`（替代 `model_name`）、`dimension`、`sub_id`、`sub_name` 字段
+
+- **i18n**：新增"按用户"、"按 API Key"、"按渠道"翻译 key（中/英）

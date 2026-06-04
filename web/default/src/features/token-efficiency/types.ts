@@ -4,6 +4,7 @@ export type {
   TokenScopeL2Summary,
   RequestContextPart,
   RequestDebugPayload,
+  L1Dimension,
 } from './api'
 
 export interface L1FilterState {

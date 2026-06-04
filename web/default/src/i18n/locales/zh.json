@@ -4560,6 +4560,9 @@
     "requests": "请求",
     "{{count}} requests": "{{count}} 次请求",
     "Input {{input}} · Output {{output}}": "输入 {{input}} · 输出 {{output}}",
-    "Cache read {{count}} tokens": "缓存读取 {{count}} Token"
+    "Cache read {{count}} tokens": "缓存读取 {{count}} Token",
+    "By User": "按用户",
+    "By API Key": "按 API Key",
+    "By Channel": "按渠道"
   }
 }

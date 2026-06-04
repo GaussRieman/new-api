@@ -19,8 +19,14 @@ export async function getTokenScopeSelfFilters(): Promise<TokenScopeFilterOption
   return res.data.data
 }
 
+/** L1 grouping dimension */
+export type L1Dimension = 'model' | 'user' | 'key' | 'channel'
+
 export interface TokenScopeL1Metrics {
-  model_name: string
+  name: string
+  dimension: L1Dimension
+  sub_id?: string
+  sub_name?: string
   request_count: number
   output_cost: number
   context_load: number
@@ -56,6 +62,10 @@ interface L1Params {
   username?: string
 }
 
+interface L1ByDimensionParams extends L1Params {
+  dimension?: L1Dimension
+}
+
 interface TimeSeriesParams extends L1Params {
   bucket?: 'hour' | 'day'
 }
@@ -80,13 +90,16 @@ export async function getTokenScopeL1ByModel(
   return res.data.data
 }
 
-export async function getTokenScopeL1TimeSeries(
-  params: TimeSeriesParams = {}
-): Promise<TokenScopeL1TimePoint[]> {
+/** @deprecated Use getTokenScopeL1ByDimension instead */
+export { getTokenScopeL1ByModel as getTokenScopeL1ByDimensionOld }
+
+export async function getTokenScopeL1ByDimension(
+  params: L1ByDimensionParams = {}
+): Promise<TokenScopeL1Metrics[]> {
   const res = await api.get<{
     success: boolean
-    data: TokenScopeL1TimePoint[]
-  }>('/api/tokenscope/l1/timeseries', { params })
+    data: TokenScopeL1Metrics[]
+  }>('/api/tokenscope/l1/by-dimension', { params })
   return res.data.data
 }
 
@@ -107,6 +120,26 @@ export async function getTokenScopeSelfL1ByModel(
     success: boolean
     data: TokenScopeL1Metrics[]
   }>('/api/tokenscope/self/l1/by-model', { params })
+  return res.data.data
+}
+
+export async function getTokenScopeSelfL1ByDimension(
+  params: Omit<L1ByDimensionParams, 'channel' | 'username'> = {}
+): Promise<TokenScopeL1Metrics[]> {
+  const res = await api.get<{
+    success: boolean
+    data: TokenScopeL1Metrics[]
+  }>('/api/tokenscope/self/l1/by-dimension', { params })
+  return res.data.data
+}
+
+export async function getTokenScopeL1TimeSeries(
+  params: TimeSeriesParams = {}
+): Promise<TokenScopeL1TimePoint[]> {
+  const res = await api.get<{
+    success: boolean
+    data: TokenScopeL1TimePoint[]
+  }>('/api/tokenscope/l1/timeseries', { params })
   return res.data.data
 }
 
