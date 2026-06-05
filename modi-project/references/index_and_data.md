@@ -19,7 +19,7 @@
 ---
 ## L2：深度诊断指标
 数据源：`raw_request_body + context_parts`
-Debug / 采样开启。
+始终开启，数据驱动显示。
 ```text
 1. 上下文结构
 = 各类 context_part_tokens / input_tokens
@@ -62,7 +62,7 @@ Debug / 采样开启。
 ```
 ---
 ## 2. request_debug_payload
-支撑 L2，Debug / 采样开启。
+支撑 L2，始终开启采样。
 ```json
 {
   "request_id": "uuid",

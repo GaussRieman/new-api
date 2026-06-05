@@ -39,7 +39,7 @@
   - 自动标记：is_prefix / is_repeated / is_stable / is_cache_friendly
 
 - **配置**：
-  - `tokenscope_setting`：L2 采样开关、采样率、最大 payload、保留天数、捕获模型列表
+  - `tokenscope_setting`：L2 采样率、最大 payload、保留天数、捕获模型列表（采样始终开启，无需手动启用）
 
 - **i18n**：新增 40 个翻译 key（中/英），涵盖成本分析页面全部文案
 
@@ -74,6 +74,15 @@
 ### 修复
 
 - L1 指标卡片子文本优化：使用 i18n 插值替代裸拼接，Token 数量使用 K/M 缩写
+
+## [Unreleased] — TokenScope L2 数据驱动改进
+
+### 修复
+
+- 去掉 L2 ON/OFF 开关，改为数据驱动显示：L2 采样始终开启，有数据则渲染，无数据显示"所选时间段无 L2 诊断数据"
+- 移除 `tokenscope_setting.enabled` 字段及 `/api/status` 中的 `tokenscope_enabled`
+- 移除前端 Cost Analysis 页面的 L2 Switch 组件和系统设置中的 L2 启用开关
+- 修复大请求体截断后 JSON 无效导致 parser 静默失败的 bug：重写 `truncateAndCloseJSON`，使用正向扫描找到最后一个完整 value 闭合位置，然后自动闭合括号，确保截断后 JSON 始终有效
   - 产出成本：`543 请求` → `543 次请求`
   - 上下文负载：`输入: 6,199,888 | 输出: 180,322` → `输入 6.2M · 输出 180.3K`
   - 缓存复用率：`缓存读取: 3,716,224` → `缓存读取 3.7M Token`

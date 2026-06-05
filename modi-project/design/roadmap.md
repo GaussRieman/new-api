@@ -69,16 +69,16 @@
 - 辅助函数：CreateRequestDebugPayload, CreateRequestContextParts, MarkDebugPayloadParsed, DeleteOldDebugPayloads
 
 **配置层**：
-- `setting/tokenscope_setting/config.go`：L2 采样配置（enabled, sample_rate, max_payload_size, retention_days, capture_models）
+- `setting/tokenscope_setting/config.go`：L2 采样配置（sample_rate, max_payload_size, retention_days, capture_models）
 - 已注册到 config.GlobalConfig
 - 已在 main.go 中 import 初始化
 
 **Relay 捕获**：
 - `pkg/tokenscope/capture.go`：MaybeCaptureRequest 采样钩子
-  - 确定性哈希采样（基于 request_id）
+  - 混合采样：确定性哈希随机采样 + 1/10 轮询保底
   - 模型白名单过滤
   - 异步捕获（gopool.Go）
-  - 自动截断到 MaxPayloadSize + JSON 边界保护
+  - 智能截断：正向扫描找到完整 value 边界 + 自动闭合括号，确保截断后 JSON 始终有效
   - 内联调用 context parser
 
 **Context Parser**：
@@ -100,6 +100,8 @@
 ### 待完成
 - [x] 前端 L2 Tab 完整渲染验证
 - [x] i18n L2 翻译 key 补充
+- [x] 去掉 L2 开关，改为数据驱动显示（始终开启，有数据渲染，无数据提示）
+- [x] 修复大请求体截断后 JSON 无效导致 parser 静默失败的 bug
 - [ ] 清理任务后台 goroutine（retention_days 自动清理）
 
 ---

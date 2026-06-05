@@ -215,12 +215,13 @@ curl -H "Authorization: Bearer <token>" \
 
 ## 6. 采样配置
 
-L2 采样由 `tokenscope_setting` 控制，在系统设置中可配置：
+L2 采样由 `tokenscope_setting` 控制，始终开启（数据驱动显示），在系统设置中可配置采样率等参数：
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `enabled` | bool | false | 是否启用 L2 采样 |
-| `sample_rate` | float64 | 0.01 | 采样率（0.0~1.0） |
+| `sample_rate` | float64 | 0.05 | 采样率（0.0~1.0），另含 1/10 轮询保底采样 |
 | `max_payload_size` | int | 102400 | 最大请求体存储大小（100KB） |
 | `retention_days` | int | 7 | 自动清理天数 |
 | `capture_models` | string | "" | 模型白名单（逗号分隔，空=全部） |
+
+> **注意**：L2 采样始终开启，无需手动启用。前端 L2 诊断 Tab 根据数据驱动显示：有数据则渲染，无数据则提示"所选时间段无 L2 诊断数据"。将 `sample_rate` 设为 0 可等效关闭采样。
