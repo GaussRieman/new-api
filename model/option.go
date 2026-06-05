@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	tokenscopesetting "github.com/QuantumNous/new-api/setting/tokenscope_setting"
 	"gorm.io/gorm"
 )
 
@@ -324,6 +325,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TaskEnabled = boolValue
 		case "DataExportEnabled":
 			common.DataExportEnabled = boolValue
+		case "tokenscope_setting.enabled":
+			tokenscopesetting.GetTokenScopeSetting().Enabled = boolValue
 		case "DefaultCollapseSidebar":
 			common.DefaultCollapseSidebar = boolValue
 		case "MjNotifyEnabled":
@@ -388,6 +391,10 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateAutoGroupsByJsonString(value)
 	case "CustomCallbackAddress":
 		operation_setting.CustomCallbackAddress = value
+	case "tokenscope_setting.sample_rate":
+		if floatVal, fErr := strconv.ParseFloat(value, 64); fErr == nil {
+			tokenscopesetting.GetTokenScopeSetting().SampleRate = floatVal
+		}
 	case "EpayId":
 		operation_setting.EpayId = value
 	case "EpayKey":
