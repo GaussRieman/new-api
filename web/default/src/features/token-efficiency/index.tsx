@@ -77,7 +77,6 @@ export function TokenEfficiency() {
       const params: Record<string, unknown> = {
         start_timestamp: filters.startTimestamp,
         end_timestamp: filters.endTimestamp,
-        dimension,
       }
       if (filters.modelName) params.model_name = filters.modelName
       if (filters.group) params.group = filters.group
@@ -94,7 +93,7 @@ export function TokenEfficiency() {
     } finally {
       setL2Loading(false)
     }
-  }, [filters, isAdmin, dimension])
+  }, [filters, isAdmin])
 
   useEffect(() => {
     fetchL1Data()
@@ -115,35 +114,6 @@ export function TokenEfficiency() {
 
           <FilterBar filters={filters} onChange={setFilters} />
 
-          <ToggleGroup
-            value={dimension}
-            onValueChange={(value) => {
-              const newDimension = Array.isArray(value) ? value[0] : value
-              if (newDimension) setDimension(newDimension as L1Dimension)
-            }}
-            variant='outline'
-            size='sm'
-            type='single'
-            className='mb-2'
-          >
-            {isAdmin && (
-              <>
-                <ToggleGroupItem value='user'>
-                  {t('User')}
-                </ToggleGroupItem>
-                <ToggleGroupItem value='channel'>
-                  {t('Channel')}
-                </ToggleGroupItem>
-              </>
-            )}
-            <ToggleGroupItem value='key'>
-              {t('API Key')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value='model'>
-              {t('Model')}
-            </ToggleGroupItem>
-          </ToggleGroup>
-
           <Tabs defaultValue='l1'>
             <TabsList>
               <TabsTrigger value='l1'>{t('L1 Monitoring')}</TabsTrigger>
@@ -154,17 +124,46 @@ export function TokenEfficiency() {
 
             <TabsContent value='l1' className='space-y-6'>
               <L1SummaryCards data={summary} loading={loading} />
-              <L1ModelTable
-                data={byDimension}
-                loading={loading}
-                dimension={dimension}
-              />
+              <div>
+                <ToggleGroup
+                  value={dimension}
+                  onValueChange={(value) => {
+                    const newDimension = Array.isArray(value) ? value[0] : value
+                    if (newDimension) setDimension(newDimension as L1Dimension)
+                  }}
+                  variant='outline'
+                  size='sm'
+                  type='single'
+                  className='mb-4'
+                >
+                  {isAdmin && (
+                    <>
+                      <ToggleGroupItem value='user'>
+                        {t('User')}
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value='channel'>
+                        {t('Channel')}
+                      </ToggleGroupItem>
+                    </>
+                  )}
+                  <ToggleGroupItem value='key'>
+                    {t('API Key')}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value='model'>
+                    {t('Model')}
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <L1ModelTable
+                  data={byDimension}
+                  loading={loading}
+                  dimension={dimension}
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value='l2' className='space-y-6'>
               <L2RequestTable
                 filters={filters}
-                dimension={dimension}
                 loading={l2Loading}
               />
               {l2Summary && l2Summary.length > 0 && (
