@@ -208,7 +208,7 @@ export async function getTokenScopeL2Summary(
   const res = await api.get<{
     success: boolean
     data: TokenScopeL2Summary[]
-  }>('/api/tokenscope/l2/summary', { params })
+  }>('/api/tokenscope/l2/summary', { params, skipErrorHandler: true })
   return res.data.data || []
 }
 
@@ -218,7 +218,7 @@ export async function getTokenScopeL2ByDimension(
   const res = await api.get<{
     success: boolean
     data: TokenScopeL2Summary[]
-  }>('/api/tokenscope/l2/by-dimension', { params })
+  }>('/api/tokenscope/l2/by-dimension', { params, skipErrorHandler: true })
   return res.data.data || []
 }
 
@@ -228,7 +228,7 @@ export async function getTokenScopeSelfL2ByDimension(
   const res = await api.get<{
     success: boolean
     data: TokenScopeL2Summary[]
-  }>('/api/tokenscope/self/l2/by-dimension', { params })
+  }>('/api/tokenscope/self/l2/by-dimension', { params, skipErrorHandler: true })
   return res.data.data || []
 }
 
@@ -238,7 +238,7 @@ export async function getTokenScopeL2Recent(
   const res = await api.get<{
     success: boolean
     data: RequestDebugPayload[]
-  }>('/api/tokenscope/l2/recent', { params })
+  }>('/api/tokenscope/l2/recent', { params, skipErrorHandler: true })
   return res.data.data || []
 }
 
@@ -248,7 +248,7 @@ export async function getTokenScopeL2RequestDetail(
   const res = await api.get<{
     success: boolean
     data: { payload: RequestDebugPayload; parts: RequestContextPart[] }
-  }>(`/api/tokenscope/l2/request/${requestId}`)
+  }>(`/api/tokenscope/l2/request/${requestId}`, { skipErrorHandler: true })
   return res.data.data
 }
 
@@ -258,6 +258,6 @@ export async function getTokenScopeSelfL2Recent(
   const res = await api.get<{
     success: boolean
     data: RequestDebugPayload[]
-  }>('/api/tokenscope/self/l2/recent', { params })
+  }>('/api/tokenscope/self/l2/recent', { params, skipErrorHandler: true })
   return res.data.data || []
 }
