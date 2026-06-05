@@ -135,10 +135,14 @@ func parseOpenAIFormat(body map[string]interface{}, position *int) []model.Reque
 }
 
 // parseClaudeFormat parses Claude messages format.
+// It first looks for the Claude-native "system" top-level field,
+// then falls back to checking messages for role="system" entries
+// (OpenAI-compatible requests routed through a Claude relay).
 func parseClaudeFormat(body map[string]interface{}, position *int) []model.RequestContextPart {
 	var parts []model.RequestContextPart
 
-	// System prompt (Claude has a separate "system" field)
+	// System prompt (Claude native: separate "system" field)
+	systemFound := false
 	if systemTexts, ok := body["system"].([]interface{}); ok {
 		var texts []string
 		for _, item := range systemTexts {
@@ -152,11 +156,18 @@ func parseClaudeFormat(body map[string]interface{}, position *int) []model.Reque
 			text := strings.Join(texts, "\n")
 			parts = append(parts, makePart(PartTypeSystem, "system_prompt", text, *position, true))
 			*position++
+			systemFound = true
 		}
 	} else if systemStr, ok := body["system"].(string); ok && systemStr != "" {
 		parts = append(parts, makePart(PartTypeSystem, "system_prompt", systemStr, *position, true))
 		*position++
+		systemFound = true
 	}
+
+	// Collect system messages from messages array if no top-level system field found.
+	// This handles OpenAI-format requests routed through Claude relay channels,
+	// where system prompts are embedded as role="system" messages.
+	var systemFromMessages []string
 
 	// Messages
 	messages, _ := body["messages"].([]interface{})
@@ -166,15 +177,26 @@ func parseClaudeFormat(body map[string]interface{}, position *int) []model.Reque
 			continue
 		}
 		role, _ := msg["role"].(string)
+
+		// If no top-level system field, extract system messages from the array
+		if !systemFound && role == "system" {
+			content := extractMessageText(msg)
+			if content != "" {
+				systemFromMessages = append(systemFromMessages, content)
+			}
+			continue // skip adding as history
+		}
+
+		if role == "system" {
+			continue // already handled via top-level system field
+		}
+
 		content := extractMessageText(msg)
 		if content == "" {
 			continue
 		}
 
 		partType := PartTypeHistory
-		if role == "user" && len(parts) == 0 {
-			// First user message is part of the prefix
-		}
 
 		// Tool use and tool results
 		if contentObj, ok := msg["content"].([]interface{}); ok {
@@ -200,6 +222,21 @@ func parseClaudeFormat(body map[string]interface{}, position *int) []model.Reque
 
 		parts = append(parts, makePart(partType, role+"_message", content, *position, false))
 		*position++
+	}
+
+	// Insert system messages collected from messages array as PartTypeSystem
+	if len(systemFromMessages) > 0 {
+		text := strings.Join(systemFromMessages, "\n")
+		sysPart := makePart(PartTypeSystem, "system_prompt", text, 0, true)
+		// Prepend to parts and re-index positions
+		allParts := []model.RequestContextPart{sysPart}
+		allParts = append(allParts, parts...)
+		// Re-index positions
+		for i := range allParts {
+			allParts[i].Position = i
+		}
+		parts = allParts
+		*position = len(parts)
 	}
 
 	// Tools
