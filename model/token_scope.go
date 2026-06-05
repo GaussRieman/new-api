@@ -454,11 +454,17 @@ func GetTokenScopeL2ByDimension(dimension Dimension, startTimestamp, endTimestam
 
 	tx := LOG_DB.Table("request_debug_payloads rdp").
 		Joins("INNER JOIN request_context_parts rc ON rc.request_id = rdp.request_id").
+		Joins("LEFT JOIN logs lg ON lg.request_id = rdp.request_id AND lg.type = ?", LogTypeConsume).
 		Select(selectCols).
 		Group("rdp." + cfg.groupCol)
 
 	if cfg.excludeWhere != "" {
-		tx = tx.Where("rdp." + cfg.excludeWhere)
+		// username filter goes to logs table, others to rdp
+		if cfg.groupCol == "username" {
+			tx = tx.Where("lg." + cfg.excludeWhere)
+		} else {
+			tx = tx.Where("rdp." + cfg.excludeWhere)
+		}
 	}
 	if userId > 0 {
 		tx = tx.Where("rdp.user_id = ?", userId)
@@ -473,7 +479,7 @@ func GetTokenScopeL2ByDimension(dimension Dimension, startTimestamp, endTimestam
 		tx = tx.Where("rdp.model_name = ?", modelName)
 	}
 	if username != "" {
-		tx = tx.Where("rdp.username = ?", username)
+		tx = tx.Where("lg.username = ?", username)
 	}
 	if channel != 0 {
 		tx = tx.Where("rdp.channel_id = ?", channel)
