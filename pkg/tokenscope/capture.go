@@ -2,6 +2,7 @@ package tokenscope
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync/atomic"
 
 	"github.com/QuantumNous/new-api/common"
@@ -61,6 +62,8 @@ func MaybeCaptureRequestBody(info *relaycommon.RelayInfo, body []byte) {
 	if !json.Valid(body) {
 		body = truncateToJSONBoundary(body, setting.MaxPayloadSize)
 	}
+
+	common.SysLog(fmt.Sprintf("L2 sampled: requestId=%s model=%s bodyLen=%d", info.RequestId, info.OriginModelName, len(body)))
 
 	storeRequestBody(info, body, setting.MaxPayloadSize)
 	cleanupOldSamples(maxSamples)
