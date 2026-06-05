@@ -88,37 +88,34 @@ func MarkDebugPayloadParsed(requestId string) error {
 		Update("parsed", true).Error
 }
 
-// DeleteOldDebugPayloads removes debug payloads older than the given timestamp,
-// and cascades deletion of associated context parts.
-func DeleteOldDebugPayloads(targetTimestamp int64, limit int) (int64, error) {
-	var total int64
-	for {
-		// First, get request_ids to delete
-		var ids []string
-		result := LOG_DB.Model(&RequestDebugPayload{}).
-			Where("created_at < ?", targetTimestamp).
-			Limit(limit).
-			Pluck("request_id", &ids)
-		if result.Error != nil {
-			return total, result.Error
-		}
-		if len(ids) == 0 {
-			break
-		}
-
-		// Delete context parts
-		LOG_DB.Where("request_id IN ?", ids).Delete(&RequestContextPart{})
-
-		// Delete payloads
-		delResult := LOG_DB.Where("request_id IN ?", ids).Delete(&RequestDebugPayload{})
-		if delResult.Error != nil {
-			return total, delResult.Error
-		}
-
-		total += delResult.RowsAffected
-		if delResult.RowsAffected < int64(limit) {
-			break
-		}
+// DeleteOldestDebugPayloads removes the oldest debug payloads to keep only the newest `keep` records.
+// Cascades deletion of associated context parts.
+func DeleteOldestDebugPayloads(keep int) (int64, error) {
+	if keep <= 0 {
+		keep = 100
 	}
-	return total, nil
+
+	// Get IDs to delete: all records except the newest `keep`
+	var ids []string
+	result := LOG_DB.Model(&RequestDebugPayload{}).
+		Order("created_at DESC").
+		Offset(keep).
+		Pluck("request_id", &ids)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	var total int64
+	// Delete context parts
+	LOG_DB.Where("request_id IN ?", ids).Delete(&RequestContextPart{})
+
+	// Delete payloads
+	delResult := LOG_DB.Where("request_id IN ?", ids).Delete(&RequestDebugPayload{})
+	if delResult.Error != nil {
+		return total, delResult.Error
+	}
+	return delResult.RowsAffected, nil
 }

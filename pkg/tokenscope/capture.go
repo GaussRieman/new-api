@@ -2,6 +2,7 @@ package tokenscope
 
 import (
 	"encoding/json"
+	"sync/atomic"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -12,6 +13,29 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
+
+const (
+	sampleEvery  = 10  // guaranteed sample every N requests
+	maxSamples   = 100 // max debug records to keep
+)
+
+var sampleCounter = uint64(0) // atomic counter for round-robin sampling
+
+// shouldSampleForL2 decides whether to sample this request using a hybrid strategy:
+// 1. Round-robin: every `sampleEvery` requests is guaranteed to be sampled
+// 2. Random: deterministic hash-based sampling at the configured rate
+func shouldSampleForL2(requestId string, rate float64) bool {
+	if rate >= 1.0 {
+		return true
+	}
+	// Round-robin: guarantee 1 sample every N requests
+	counter := atomic.AddUint64(&sampleCounter, 1)
+	if counter%uint64(sampleEvery) == 0 {
+		return true
+	}
+	// Random: hash-based sampling
+	return shouldSample(requestId, rate)
+}
 
 // MaybeCaptureRequest decides whether to sample this request for L2 diagnostics,
 // and if so, captures the raw request body asynchronously.
@@ -30,15 +54,22 @@ func MaybeCaptureRequest(c *gin.Context, info *relaycommon.RelayInfo) {
 			return
 		}
 	}
-	// Apply sampling rate (deterministic based on request_id hash)
-	if !shouldSample(info.RequestId, setting.SampleRate) {
+	// Hybrid sampling: round-robin + random
+	if !shouldSampleForL2(info.RequestId, setting.SampleRate) {
 		return
 	}
 
 	// Capture asynchronously
 	gopool.Go(func() {
 		captureRequestBody(c, info, setting.MaxPayloadSize)
+		// Enforce max samples: delete oldest if exceeding limit
+		cleanupOldSamples(maxSamples)
 	})
+}
+
+func cleanupOldSamples(limit int) {
+	// Delete oldest records to keep only the newest `limit` records
+	_, _ = model.DeleteOldestDebugPayloads(limit)
 }
 
 // shouldSample returns true based on deterministic hash of request_id.

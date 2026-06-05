@@ -14,8 +14,8 @@ type TokenScopeSetting struct {
 }
 
 var tokenscopeSetting = TokenScopeSetting{
-	Enabled:        false,
-	SampleRate:     0.01, // 1% default
+	Enabled:        true,
+	SampleRate:     0.05, // 5% random sampling, plus guaranteed 1-in-10 round-robin
 	MaxPayloadSize: 100 * 1024,
 	RetentionDays:  7,
 	CaptureModels:  "",
