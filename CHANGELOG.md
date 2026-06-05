@@ -6,16 +6,23 @@
 
 - **成本分析页面**：侧边栏新增"成本分析"菜单项，独立路由 `/token-efficiency`
   - L1 运行监控 Tab：三项核心指标卡片（产出成本、上下文负载、缓存复用率）+ 按模型分组明细表
-  - L2 深度诊断 Tab（仅管理员可见）：采样数、各部分平均 Token、重复前缀率、缓存友好度、缓存兑现率
+  - L2 深度诊断 Tab（仅管理员可见）：
+    - 最近采样请求表：显示 request ID、模型、分段数、估算 token 数、时间
+    - 点击行展开查看上下文分段详情（类型、名称、token 数、prefix/cached/repeated 标记）
+    - 聚合摘要表：采样数、各部分平均 Token、重复前缀率、缓存友好度、缓存兑现率
   - 筛选栏：支持 24h / 7d / 30d 快捷时间范围、模型名称筛选、分组筛选
+  - L1 维度切换：用户 / API 密钥 / 渠道 / 模型，左上角 TAB 切换
 
 - **后端 API**：
   - `/api/tokenscope/l1/summary` — L1 总览指标（admin）
   - `/api/tokenscope/l1/by-model` — L1 按模型分组（admin）
+  - `/api/tokenscope/l1/by-dimension` — L1 按维度分组（admin）
   - `/api/tokenscope/l1/timeseries` — L1 时序数据（admin）
   - `/api/tokenscope/self/l1/summary` — L1 当前用户总览
-  - `/api/tokenscope/self/l1/by-model` — L1 当前用户按模型
+  - `/api/tokenscope/self/l1/by-dimension` — L1 当前用户按维度分组
   - `/api/tokenscope/l2/summary` — L2 诊断指标（admin）
+  - `/api/tokenscope/l2/by-dimension` — L2 按维度分组（admin）
+  - `/api/tokenscope/self/l2/by-dimension` — L2 当前用户按维度分组
   - `/api/tokenscope/l2/recent` — L2 最近采样请求（admin）
   - `/api/tokenscope/l2/request/:request_id` — L2 请求详情（admin）
   - `/api/tokenscope/self/l2/recent` — L2 当前用户最近请求
@@ -42,6 +49,9 @@
 - 侧边栏"成本分析"菜单项默认可见（`DEFAULT_SIDEBAR_MODULES.console.tokenscope: true`）
 - 翻译 key 放入 `translation` 命名空间内，确保中文切换生效
 - L1SummaryCards 组件 null 安全处理（`?.` 可选链 + 空值回退）
+- L2 维度查询修复：`request_debug_payloads` 无 username 列，L2 按用户维度时 LEFT JOIN logs 表
+- 数据库迁移：将 `RequestDebugPayload` 和 `RequestContextPart` 加入 LOG_DB AutoMigrate
+- 表名修复：GORM 自动复数化表名为 `request_debug_payloads`，查询代码已对齐
 
 ## [Unreleased] — TokenScope 成本分析改进
 
