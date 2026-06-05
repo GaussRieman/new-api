@@ -487,12 +487,18 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		CacheWriteTokens: cacheWriteTokensTotal(summary),
 		InputTokensTotal: usageInputTokens(usage),
 	})
+	// Capture L2 body BEFORE goroutine — gin context is recycled after response
+	var l2Body []byte
+	if tokenscope_setting.GetTokenScopeSetting().Enabled {
+		if storage, err := common.GetBodyStorage(ctx); err == nil && storage != nil {
+			l2Body, _ = storage.Bytes()
+		}
+	}
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
-		// L2 debug capture: sample request body for deep diagnostics
-		reason := tokenscope.DetermineSamplingReason(relayInfo, summary.PromptTokens, summary.CompletionTokens)
-		if reason != "" || tokenscope_setting.GetTokenScopeSetting().Enabled {
-			tokenscope.MaybeCaptureRequest(ctx, relayInfo)
+		// L2 debug capture: store pre-captured body
+		if len(l2Body) > 0 {
+			tokenscope.MaybeCaptureRequestBody(relayInfo, l2Body)
 		}
 	})
 }

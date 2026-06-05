@@ -37,6 +37,35 @@ func shouldSampleForL2(requestId string, rate float64) bool {
 	return shouldSample(requestId, rate)
 }
 
+// MaybeCaptureRequestBody stores a pre-captured request body for L2 diagnostics.
+// This is called from the goroutine in text_quota.go with body bytes that were
+// captured while the gin context was still alive.
+func MaybeCaptureRequestBody(info *relaycommon.RelayInfo, body []byte) {
+	setting := tokenscope_setting.GetTokenScopeSetting()
+	if !setting.Enabled || setting.SampleRate <= 0 {
+		return
+	}
+	if setting.CaptureModels != "" {
+		if !matchModel(info.OriginModelName, setting.CaptureModels) {
+			return
+		}
+	}
+	if !shouldSampleForL2(info.RequestId, setting.SampleRate) {
+		return
+	}
+
+	// Truncate if needed
+	if len(body) > setting.MaxPayloadSize {
+		body = body[:setting.MaxPayloadSize]
+	}
+	if !json.Valid(body) {
+		body = truncateToJSONBoundary(body, setting.MaxPayloadSize)
+	}
+
+	storeRequestBody(info, body, setting.MaxPayloadSize)
+	cleanupOldSamples(maxSamples)
+}
+
 // MaybeCaptureRequest decides whether to sample this request for L2 diagnostics,
 // and if so, captures the raw request body asynchronously.
 // This function is called after RelayInfo is populated but before the response is sent.
