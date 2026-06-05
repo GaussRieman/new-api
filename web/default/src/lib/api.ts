@@ -25,6 +25,7 @@ declare module 'axios' {
   export interface AxiosRequestConfig {
     skipBusinessError?: boolean
     skipErrorHandler?: boolean
+    skipAuthReset?: boolean
     disableDuplicate?: boolean
   }
 }
@@ -98,13 +99,16 @@ api.interceptors.response.use(
   },
   (error) => {
     const skip = error?.config?.skipErrorHandler
+    const skipAuth = error?.config?.skipAuthReset
     const status = error?.response?.status
 
     if (status === 401) {
-      try {
-        useAuthStore.getState().auth.reset()
-      } catch {
-        /* empty */
+      if (!skipAuth) {
+        try {
+          useAuthStore.getState().auth.reset()
+        } catch {
+          /* empty */
+        }
       }
 
       if (!skip) {
