@@ -119,3 +119,78 @@ func DeleteOldestDebugPayloads(keep int) (int64, error) {
 	}
 	return delResult.RowsAffected, nil
 }
+
+// UpdateCrossRequestFlags updates is_repeated, is_stable, is_cache_friendly flags
+// for the context parts of the given request_id by comparing content_hash values
+// across all known requests in the database.
+//
+// Cross-request semantics:
+//   - is_repeated: this prefix part's content_hash appears in at least one OTHER request
+//   - is_stable: same as is_repeated for prefix parts (if it repeats, it's stable)
+//   - is_cache_friendly: is_prefix AND is_stable (a stable prefix can be cached by the provider)
+func UpdateCrossRequestFlags(requestId string) error {
+	// 1. Find all prefix parts for this request
+	var parts []RequestContextPart
+	if err := LOG_DB.Where("request_id = ? AND is_prefix = true", requestId).
+		Find(&parts).Error; err != nil {
+		return err
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+
+	// 2. Collect content hashes
+	hashes := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p.ContentHash != "" {
+			hashes = append(hashes, p.ContentHash)
+		}
+	}
+	if len(hashes) == 0 {
+		return nil
+	}
+
+	// 3. For each hash, check if it appears in any OTHER request
+	// Query: SELECT content_hash, COUNT(DISTINCT request_id) FROM request_context_parts
+	//        WHERE content_hash IN (?) AND request_id != ? AND is_prefix = true
+	//        GROUP BY content_hash
+	type hashCount struct {
+		ContentHash string
+		Cnt         int
+	}
+	var counts []hashCount
+	if err := LOG_DB.Model(&RequestContextPart{}).
+		Select("content_hash, COUNT(DISTINCT request_id) as cnt").
+		Where("content_hash IN ? AND request_id != ? AND is_prefix = true", hashes, requestId).
+		Group("content_hash").
+		Scan(&counts).Error; err != nil {
+		return err
+	}
+
+	// Build lookup: hash -> appears in other requests?
+	repeatedHashes := make(map[string]bool)
+	for _, hc := range counts {
+		if hc.Cnt > 0 {
+			repeatedHashes[hc.ContentHash] = true
+		}
+	}
+
+	// 4. Update flags for this request's parts AND any earlier requests' parts
+	// that share the same content_hash (they should now also be marked as repeated).
+	if len(repeatedHashes) > 0 {
+		// Bulk-update all prefix parts with matching hashes across ALL requests
+		repeatedHashList := make([]string, 0, len(repeatedHashes))
+		for h := range repeatedHashes {
+			repeatedHashList = append(repeatedHashList, h)
+		}
+		LOG_DB.Model(&RequestContextPart{}).
+			Where("content_hash IN ? AND is_prefix = true", repeatedHashList).
+			Updates(map[string]interface{}{
+				"is_repeated":       true,
+				"is_stable":         true,
+				"is_cache_friendly": true,
+			})
+	}
+
+	return nil
+}

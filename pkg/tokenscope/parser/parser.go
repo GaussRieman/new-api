@@ -307,37 +307,20 @@ func parseGeminiFormat(body map[string]interface{}, position *int) []model.Reque
 	return parts
 }
 
-// analyzeParts post-processes parts to mark prefix, repeated, stable, cache-friendly.
+// analyzeParts post-processes parts to mark prefix.
+// Note: is_repeated, is_stable, is_cache_friendly are NOT set here because
+// they require cross-request analysis (comparing content_hash across multiple
+// requests). Those flags are updated asynchronously after storage by
+// model.UpdateCrossRequestFlags().
 func analyzeParts(parts []model.RequestContextPart) {
 	if len(parts) == 0 {
 		return
 	}
 
-	// Mark first N parts as prefix (system + tool definitions are always prefix)
+	// Mark prefix parts: system prompts and tool definitions are always prefix.
 	for i := range parts {
 		if parts[i].PartType == PartTypeSystem || parts[i].PartName == "tool_definitions" {
 			parts[i].IsPrefix = true
-		}
-	}
-
-	// Detect repeated parts using content_hash
-	hashCount := make(map[string]int)
-	for _, p := range parts {
-		if p.ContentHash != "" {
-			hashCount[p.ContentHash]++
-		}
-	}
-	for i := range parts {
-		if parts[i].IsPrefix && hashCount[parts[i].ContentHash] > 0 {
-			parts[i].IsRepeated = true
-			parts[i].IsStable = true
-		}
-	}
-
-	// Mark cache-friendly: prefix + stable
-	for i := range parts {
-		if parts[i].IsPrefix && parts[i].IsStable {
-			parts[i].IsCacheFriendly = true
 		}
 	}
 }

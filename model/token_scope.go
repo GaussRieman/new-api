@@ -441,9 +441,16 @@ func GetTokenScopeL2ByDimension(dimension Dimension, startTimestamp, endTimestam
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'history' THEN rc.token_count ELSE NULL END), 0) as avg_history_tokens, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'tool' THEN rc.token_count ELSE NULL END), 0) as avg_tool_tokens, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'file' THEN rc.token_count ELSE NULL END), 0) as avg_file_tokens, " +
-		"COALESCE(AVG(CASE WHEN rc.is_repeated = true AND rc.is_prefix = true THEN 1.0 ELSE 0.0 END), 0) as repeated_prefix_rate, " +
-		"COALESCE(AVG(CASE WHEN rc.is_prefix = true AND rc.is_stable = true THEN 1.0 ELSE 0.0 END), 0) as cache_friendliness, " +
-		"COALESCE(AVG(CASE WHEN rc.is_cache_friendly = true THEN 1.0 ELSE 0.0 END), 0) as cache_fulfillment_rate"
+		// 重复前缀率: fraction of ALL parts whose tokens come from repeated prefix content
+		// = SUM(repeated prefix tokens) / SUM(all tokens)
+		// Note: * 1.0 forces float division in SQLite (otherwise integer division truncates to 0)
+		"COALESCE(SUM(CASE WHEN rc.is_prefix = true AND rc.is_repeated = true THEN rc.token_count ELSE 0 END) * 1.0 / NULLIF(SUM(rc.token_count), 0), 0) as repeated_prefix_rate, " +
+		// 缓存友好度: fraction of ALL parts whose tokens are stable prefix (cacheable by provider)
+		// = SUM(stable prefix tokens) / SUM(all tokens)
+		"COALESCE(SUM(CASE WHEN rc.is_prefix = true AND rc.is_stable = true THEN rc.token_count ELSE 0 END) * 1.0 / NULLIF(SUM(rc.token_count), 0), 0) as cache_friendliness, " +
+		// 缓存兑现率: actual cache hit ratio from L1 data
+		// = SUM(lg.cache_read_tokens) / SUM(lg.input_tokens_total)  (from logs joined)
+		"COALESCE(SUM(lg.cache_read_tokens) * 1.0 / NULLIF(SUM(lg.input_tokens_total), 0), 0) as cache_fulfillment_rate"
 
 	var nameExpr, groupCol, excludeWhere, subIdExpr string
 	switch dimension {

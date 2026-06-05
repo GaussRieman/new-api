@@ -191,6 +191,13 @@ func storeRequestBody(info *relaycommon.RelayInfo, body []byte, maxPayloadSize i
 	if err := parser.ParseAndStore(info.RequestId, body, info); err != nil {
 		common.SysError("failed to parse context parts: " + err.Error())
 	}
+
+	// Update cross-request flags (is_repeated, is_stable, is_cache_friendly)
+	// These flags require comparing content_hash across requests, so they
+	// must be computed after storage, not during parsing.
+	if err := model.UpdateCrossRequestFlags(info.RequestId); err != nil {
+		common.SysError("failed to update cross-request flags: " + err.Error())
+	}
 }
 
 // truncateAndCloseJSON truncates data to maxBytes and repairs it into valid JSON
