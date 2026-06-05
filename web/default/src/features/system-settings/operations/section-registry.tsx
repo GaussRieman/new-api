@@ -109,7 +109,6 @@ const OPERATIONS_SECTIONS = [
     titleKey: 'L2 Debug Sampling',
     build: (settings: OperationsSettings) => (
       <TokenScopeSection
-        defaultEnabled={Boolean(settings['tokenscope_setting.enabled'])}
         defaultSampleRate={settings['tokenscope_setting.sample_rate'] ?? 0.05}
       />
     ),

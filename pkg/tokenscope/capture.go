@@ -1,6 +1,7 @@
 package tokenscope
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sync/atomic"
@@ -43,7 +44,7 @@ func shouldSampleForL2(requestId string, rate float64) bool {
 // captured while the gin context was still alive.
 func MaybeCaptureRequestBody(info *relaycommon.RelayInfo, body []byte) {
 	setting := tokenscope_setting.GetTokenScopeSetting()
-	if !setting.Enabled || setting.SampleRate <= 0 {
+	if setting.SampleRate <= 0 {
 		return
 	}
 	if setting.CaptureModels != "" {
@@ -55,12 +56,9 @@ func MaybeCaptureRequestBody(info *relaycommon.RelayInfo, body []byte) {
 		return
 	}
 
-	// Truncate if needed
+	// Truncate if needed, ensuring valid JSON
 	if len(body) > setting.MaxPayloadSize {
-		body = body[:setting.MaxPayloadSize]
-	}
-	if !json.Valid(body) {
-		body = truncateToJSONBoundary(body, setting.MaxPayloadSize)
+		body = truncateAndCloseJSON(body, setting.MaxPayloadSize)
 	}
 
 	common.SysLog(fmt.Sprintf("L2 sampled: requestId=%s model=%s bodyLen=%d", info.RequestId, info.OriginModelName, len(body)))
@@ -74,9 +72,6 @@ func MaybeCaptureRequestBody(info *relaycommon.RelayInfo, body []byte) {
 // This function is called after RelayInfo is populated but before the response is sent.
 func MaybeCaptureRequest(c *gin.Context, info *relaycommon.RelayInfo) {
 	setting := tokenscope_setting.GetTokenScopeSetting()
-	if !setting.Enabled {
-		return
-	}
 	if setting.SampleRate <= 0 {
 		return
 	}
@@ -103,14 +98,10 @@ func MaybeCaptureRequest(c *gin.Context, info *relaycommon.RelayInfo) {
 	if err != nil || len(data) == 0 {
 		return
 	}
-	// Truncate if needed
+	// Truncate if needed, ensuring valid JSON
 	body := data
 	if len(body) > setting.MaxPayloadSize {
-		body = body[:setting.MaxPayloadSize]
-	}
-	// Validate and truncate to valid JSON boundary
-	if !json.Valid(body) {
-		body = truncateToJSONBoundary(data, setting.MaxPayloadSize)
+		body = truncateAndCloseJSON(data, setting.MaxPayloadSize)
 	}
 
 	// Capture asynchronously with captured data (no gin context needed)
@@ -202,26 +193,166 @@ func storeRequestBody(info *relaycommon.RelayInfo, body []byte, maxPayloadSize i
 	}
 }
 
-// truncateToJSONBoundary truncates data to a valid JSON boundary within maxBytes.
-func truncateToJSONBoundary(data []byte, maxBytes int) []byte {
-	if maxBytes <= 1 {
-		return data[:maxBytes]
+// truncateAndCloseJSON truncates data to maxBytes and repairs it into valid JSON
+// by finding the last complete value boundary and closing any open brackets.
+// This handles the common case where truncation cuts mid-string or mid-array.
+func truncateAndCloseJSON(data []byte, maxBytes int) []byte {
+	if len(data) <= maxBytes && json.Valid(data) {
+		return data
 	}
-	// Try progressively smaller sizes to find valid JSON
-	for size := maxBytes; size > 0; size-- {
-		if data[size-1] == '\n' || data[size-1] == '\r' || data[size-1] == ' ' {
-			continue // skip trailing whitespace
+
+	// Step 1: truncate to maxBytes
+	truncated := data
+	if len(truncated) > maxBytes {
+		truncated = truncated[:maxBytes]
+	}
+
+	if json.Valid(truncated) {
+		return truncated
+	}
+
+	// Step 2: Forward-scan to find the last safe truncation point.
+	// We look for closing } or ] that completes a value within the budget,
+	// then truncate right after it and close remaining open brackets.
+	safeIdx := findLastCompleteValueBoundary(data, maxBytes)
+	if safeIdx <= 0 {
+		// Can't find a safe point; return truncated as-is
+		return truncated
+	}
+
+	safe := data[:safeIdx]
+
+	// Step 3: Count open brackets/braces to close them properly
+	braceDepth, bracketDepth := countOpenStructures(safe)
+	closing := bytes.Repeat([]byte{']'}, bracketDepth)
+	closing = append(closing, bytes.Repeat([]byte{'}'}, braceDepth)...)
+
+	result := make([]byte, len(safe)+len(closing))
+	copy(result, safe)
+	copy(result[len(safe):], closing)
+
+	if json.Valid(result) {
+		return result
+	}
+
+	// If the result has a trailing comma before closing, remove it
+	resultStr := string(result)
+	for i := len(resultStr) - len(closing) - 1; i >= 0; i-- {
+		ch := resultStr[i]
+		if ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' {
+			continue
 		}
-		truncated := data[:size]
-		if json.Valid(truncated) {
-			return truncated
+		if ch == ',' {
+			// Remove trailing comma and retry
+			fixed := resultStr[:i] + resultStr[i+1:]
+			if json.Valid([]byte(fixed)) {
+				return []byte(fixed)
+			}
+		}
+		break
+	}
+
+	// If nothing works, return truncated as-is (parser will handle gracefully)
+	return truncated
+}
+
+// findLastCompleteValueBoundary forward-scans data up to maxBytes and returns
+// the end position of the last complete JSON value (after a closing } or ]).
+// This works for typical API request bodies where the top-level is an object
+// containing arrays of nested objects (e.g., {"messages": [...]}).
+func findLastCompleteValueBoundary(data []byte, maxBytes int) int {
+	limit := len(data)
+	if limit > maxBytes {
+		limit = maxBytes
+	}
+
+	depth := 0
+	inString := false
+	escape := false
+	bestPos := 0
+
+	for i := 0; i < limit; i++ {
+		ch := data[i]
+
+		if escape {
+			escape = false
+			continue
+		}
+
+		if ch == '\\' && inString {
+			escape = true
+			continue
+		}
+
+		if ch == '"' {
+			inString = !inString
+			continue
+		}
+
+		if inString {
+			continue
+		}
+
+		switch ch {
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			// After closing a structure, record this as a potential truncation point.
+			// We want depth >= 1 (still inside the outermost object) so that we
+			// can close remaining brackets and get valid JSON.
+			// depth 1 = just closed a nested value inside the root object
+			// depth 2 = just closed an element inside a nested array/object
+			if depth >= 1 && depth <= 3 {
+				bestPos = i + 1 // include the closing bracket
+			}
 		}
 	}
-	// If no valid JSON found, just return up to maxBytes
-	if len(data) > maxBytes {
-		return data[:maxBytes]
+
+	return bestPos
+}
+
+// countOpenStructures counts unclosed { and [ brackets in (presumably partial) JSON data.
+func countOpenStructures(data []byte) (braces, brackets int) {
+	inString := false
+	escape := false
+
+	for _, ch := range data {
+		if escape {
+			escape = false
+			continue
+		}
+		if ch == '\\' && inString {
+			escape = true
+			continue
+		}
+		if ch == '"' {
+			inString = !inString
+			continue
+		}
+		if inString {
+			continue
+		}
+		switch ch {
+		case '{':
+			braces++
+		case '}':
+			braces--
+		case '[':
+			brackets++
+		case ']':
+			brackets--
+		}
 	}
-	return data
+
+	// Ensure non-negative
+	if braces < 0 {
+		braces = 0
+	}
+	if brackets < 0 {
+		brackets = 0
+	}
+	return
 }
 
 // LinkDebugPayloadToLog updates a debug payload's log_id after the log is created.

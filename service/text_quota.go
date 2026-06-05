@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/pkg/tokenscope"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/tokenscope_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -489,10 +488,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	})
 	// Capture L2 body BEFORE goroutine — gin context is recycled after response
 	var l2Body []byte
-	if tokenscope_setting.GetTokenScopeSetting().Enabled {
-		if storage, err := common.GetBodyStorage(ctx); err == nil && storage != nil {
-			l2Body, _ = storage.Bytes()
-		}
+	if storage, err := common.GetBodyStorage(ctx); err == nil && storage != nil {
+		l2Body, _ = storage.Bytes()
 	}
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))

@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Switch } from '@/components/ui/switch'
-import { toast } from 'sonner'
 import { L1SummaryCards } from './components/l1-summary-cards'
 import { L1ModelTable } from './components/l1-model-table'
 import { L2RequestTable } from './components/l2-request-table'
@@ -20,8 +18,6 @@ import {
 import type { TokenScopeL1Metrics, L1FilterState, TokenScopeL2Summary, L1Dimension } from './types'
 import { SectionPageLayout } from '@/components/layout'
 import { useIsAdmin } from '@/hooks/use-admin'
-import { updateSystemOption } from '@/features/system-settings/api'
-import { getStatus } from '@/lib/api'
 
 export function TokenEfficiency() {
   const { t } = useTranslation()
@@ -45,8 +41,6 @@ export function TokenEfficiency() {
   const [l2Summary, setL2Summary] = useState<TokenScopeL2Summary[]>([])
   const [loading, setLoading] = useState(false)
   const [l2Loading, setL2Loading] = useState(false)
-  const [l2Enabled, setL2Enabled] = useState(false)
-  const [l2ToggleLoading, setL2ToggleLoading] = useState(false)
 
   const fetchL1Data = useCallback(async () => {
     setLoading(true)
@@ -95,7 +89,8 @@ export function TokenEfficiency() {
         setL2Summary(l2Data)
       }
     } catch {
-      // Error handled silently
+      // Error handled silently — L2 tab will show "no data" state
+      setL2Summary([])
     } finally {
       setL2Loading(false)
     }
@@ -108,29 +103,6 @@ export function TokenEfficiency() {
   useEffect(() => {
     fetchL2Data()
   }, [fetchL2Data])
-
-  // Load L2 sampling status on mount
-  useEffect(() => {
-    getStatus().then((data: any) => {
-      if (data?.data?.tokenscope_enabled !== undefined) {
-        setL2Enabled(Boolean(data.data.tokenscope_enabled))
-      }
-    }).catch(() => {})
-  }, [])
-
-  const toggleL2Sampling = async (enabled: boolean) => {
-    setL2ToggleLoading(true)
-    setL2Enabled(enabled)
-    try {
-      await updateSystemOption({ key: 'tokenscope_setting.enabled', value: enabled })
-      toast.success(enabled ? t('L2 sampling enabled') : t('L2 sampling disabled'))
-    } catch {
-      setL2Enabled(!enabled) // revert
-      toast.error(t('Failed to update L2 sampling setting'))
-    } finally {
-      setL2ToggleLoading(false)
-    }
-  }
 
   return (
     <SectionPageLayout>
@@ -148,18 +120,6 @@ export function TokenEfficiency() {
               <TabsTrigger value='l1'>{t('L1 Monitoring')}</TabsTrigger>
               {isAdmin && (
                 <TabsTrigger value='l2'>{t('L2 Diagnostics')}</TabsTrigger>
-              )}
-              {isAdmin && (
-                <div className='ml-auto flex items-center gap-2 px-2'>
-                  <Switch
-                    checked={l2Enabled}
-                    onCheckedChange={toggleL2Sampling}
-                    disabled={l2ToggleLoading}
-                  />
-                  <span className='text-xs text-muted-foreground whitespace-nowrap'>
-                    {l2Enabled ? t('L2 ON') : t('L2 OFF')}
-                  </span>
-                </div>
               )}
             </TabsList>
 
@@ -207,14 +167,18 @@ export function TokenEfficiency() {
                 filters={filters}
                 loading={l2Loading}
               />
-              {l2Summary && l2Summary.length > 0 && (
+              {l2Summary && l2Summary.length > 0 ? (
                 <div>
                   <h3 className='mb-3 text-sm font-medium text-muted-foreground'>
                     {t('Aggregate Summary')}
                   </h3>
                   <L2SummaryTable data={l2Summary} loading={l2Loading} />
                 </div>
-              )}
+              ) : !l2Loading ? (
+                <div className='flex items-center justify-center rounded-lg border border-dashed py-12 text-sm text-muted-foreground'>
+                  {t('No L2 diagnostic data available for the selected period')}
+                </div>
+              ) : null}
             </TabsContent>
           </Tabs>
         </div>

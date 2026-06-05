@@ -30,27 +30,23 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
-import { SettingsForm, SettingsSwitchItem, SettingsSwitchContent } from '../components/settings-form-layout'
+import { SettingsForm } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const tokenscopeSchema = z.object({
-  enabled: z.boolean(),
   sample_rate: z.coerce.number().min(0).max(1),
 })
 
 type TokenScopeFormValues = z.infer<typeof tokenscopeSchema>
 
 interface TokenScopeSectionProps {
-  defaultEnabled: boolean
   defaultSampleRate: number
 }
 
 export function TokenScopeSection({
-  defaultEnabled,
   defaultSampleRate,
 }: TokenScopeSectionProps) {
   const { t } = useTranslation()
@@ -58,20 +54,15 @@ export function TokenScopeSection({
   const form = useForm<TokenScopeFormValues>({
     resolver: zodResolver(tokenscopeSchema),
     defaultValues: {
-      enabled: defaultEnabled,
       sample_rate: defaultSampleRate,
     },
   })
 
   useEffect(() => {
-    form.reset({ enabled: defaultEnabled, sample_rate: defaultSampleRate })
-  }, [defaultEnabled, defaultSampleRate, form])
+    form.reset({ sample_rate: defaultSampleRate })
+  }, [defaultSampleRate, form])
 
   const onSubmit = async (values: TokenScopeFormValues) => {
-    await updateOption.mutateAsync({
-      key: 'tokenscope_setting.enabled',
-      value: values.enabled,
-    })
     await updateOption.mutateAsync({
       key: 'tokenscope_setting.sample_rate',
       value: values.sample_rate,
@@ -86,29 +77,6 @@ export function TokenScopeSection({
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
             saveLabel={t('Save')}
-          />
-          <FormField
-            control={form.control}
-            name='enabled'
-            render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>{t('Enable L2 sampling')}</FormLabel>
-                  <FormDescription>
-                    {t(
-                      'Capture raw request bodies for deep context diagnostics. Uses additional storage.'
-                    )}
-                  </FormDescription>
-                </SettingsSwitchContent>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <FormMessage />
-              </SettingsSwitchItem>
-            )}
           />
           <FormField
             control={form.control}

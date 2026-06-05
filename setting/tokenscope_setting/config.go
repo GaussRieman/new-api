@@ -5,8 +5,8 @@ import (
 )
 
 // TokenScopeSetting controls L2 deep diagnostics sampling behavior.
+// L2 capture is always active; data-driven display handles the "no data" case.
 type TokenScopeSetting struct {
-	Enabled        bool    `json:"enabled"`          // L2 debug capture enabled
 	SampleRate     float64 `json:"sample_rate"`      // 0.0-1.0, fraction of requests to capture
 	MaxPayloadSize int     `json:"max_payload_size"` // max bytes to store per request body (default 100KB)
 	RetentionDays  int     `json:"retention_days"`   // auto-cleanup days (default 7)
@@ -14,7 +14,6 @@ type TokenScopeSetting struct {
 }
 
 var tokenscopeSetting = TokenScopeSetting{
-	Enabled:        true,
 	SampleRate:     0.05, // 5% random sampling, plus guaranteed 1-in-10 round-robin
 	MaxPayloadSize: 100 * 1024,
 	RetentionDays:  7,
