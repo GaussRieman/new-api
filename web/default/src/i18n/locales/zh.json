@@ -4092,6 +4092,7 @@
     "No sampled requests available": "暂无采样请求",
     "Enable L2 sampling in settings or adjust the time range": "请在设置中开启 L2 采样或调整时间范围",
     "No context parts parsed": "未解析到上下文分段",
+    "Token counts are estimates (4 chars ≈ 1 token)": "Token 数为估算值（4 字符 ≈ 1 token）",
     "Aggregate Summary": "聚合摘要",
     "Parts": "分段数",
     "Total Tokens (est)": "总 Token（估算）",

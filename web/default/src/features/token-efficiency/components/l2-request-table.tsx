@@ -138,7 +138,7 @@ export function L2RequestTable({
       <div className='py-8 text-center text-muted-foreground'>
         {t('No sampled requests available')}
         <p className='mt-1 text-sm'>
-          Enable L2 sampling in settings or adjust the time range
+          {t('Enable L2 sampling in settings or adjust the time range')}
         </p>
       </div>
     )
@@ -292,7 +292,7 @@ export function L2RequestTable({
                                 </div>
                               ))}
                               <p className='pt-1 text-xs text-muted-foreground'>
-                                Token counts are estimates (4 chars ≈ 1 token)
+                                {t('Token counts are estimates (4 chars ≈ 1 token)')}
                               </p>
                             </div>
                           )}
