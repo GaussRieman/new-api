@@ -59,9 +59,31 @@ func MaybeCaptureRequest(c *gin.Context, info *relaycommon.RelayInfo) {
 		return
 	}
 
-	// Capture asynchronously
+	// CRITICAL: Read body storage BEFORE launching goroutine.
+	// Gin recycles contexts via sync.Pool after response is sent, which clears
+	// all context values. The goroutine would see an empty context if we defer
+	// the read. Capturing here ensures the data survives past context recycling.
+	storage, err := common.GetBodyStorage(c)
+	if err != nil || storage == nil {
+		return
+	}
+	data, err := storage.Bytes()
+	if err != nil || len(data) == 0 {
+		return
+	}
+	// Truncate if needed
+	body := data
+	if len(body) > setting.MaxPayloadSize {
+		body = body[:setting.MaxPayloadSize]
+	}
+	// Validate and truncate to valid JSON boundary
+	if !json.Valid(body) {
+		body = truncateToJSONBoundary(data, setting.MaxPayloadSize)
+	}
+
+	// Capture asynchronously with captured data (no gin context needed)
 	gopool.Go(func() {
-		captureRequestBody(c, info, setting.MaxPayloadSize)
+		storeRequestBody(info, body, setting.MaxPayloadSize)
 		// Enforce max samples: delete oldest if exceeding limit
 		cleanupOldSamples(maxSamples)
 	})
@@ -115,33 +137,13 @@ func splitComma(s string) []string {
 	return result
 }
 
-func captureRequestBody(c *gin.Context, info *relaycommon.RelayInfo, maxPayloadSize int) {
-	if info == nil {
+// storeRequestBody persists the pre-captured request body to the database.
+// The body bytes are captured BEFORE launching the goroutine to avoid gin
+// context recycling issues (gin v1.9 uses sync.Pool which clears context
+// values after response is sent).
+func storeRequestBody(info *relaycommon.RelayInfo, body []byte, maxPayloadSize int) {
+	if info == nil || len(body) == 0 {
 		return
-	}
-
-	storage, err := common.GetBodyStorage(c)
-	if err != nil || storage == nil {
-		return
-	}
-
-	data, err := storage.Bytes()
-	if err != nil || len(data) == 0 {
-		return
-	}
-
-	// Truncate if needed
-	body := data
-	if len(body) > maxPayloadSize {
-		body = body[:maxPayloadSize]
-	}
-
-	// Validate and truncate to valid JSON boundary
-	if json.Valid(body) {
-		// Already valid JSON
-	} else {
-		// Try to find a valid JSON boundary by truncating from the end
-		body = truncateToJSONBoundary(data, maxPayloadSize)
 	}
 
 	payload := &model.RequestDebugPayload{
@@ -163,10 +165,8 @@ func captureRequestBody(c *gin.Context, info *relaycommon.RelayInfo, maxPayloadS
 	}
 
 	// Parse context parts inline
-	if len(body) > 0 {
-		if err := parser.ParseAndStore(info.RequestId, body, info); err != nil {
-			common.SysError("failed to parse context parts: " + err.Error())
-		}
+	if err := parser.ParseAndStore(info.RequestId, body, info); err != nil {
+		common.SysError("failed to parse context parts: " + err.Error())
 	}
 }
 
