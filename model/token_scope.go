@@ -436,8 +436,6 @@ type TokenScopeL2Agg struct {
 
 // GetTokenScopeL2ByDimension returns L2 diagnostic metrics grouped by the specified dimension.
 func GetTokenScopeL2ByDimension(dimension Dimension, startTimestamp, endTimestamp int64, modelName, username string, channel int, group string, userId int) ([]TokenScopeL2Summary, error) {
-	cfg := getDimensionConfig(dimension)
-
 	l2Metrics := "count(DISTINCT rdp.request_id) as sample_count, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'system' THEN rc.token_count ELSE NULL END), 0) as avg_system_tokens, " +
 		"COALESCE(AVG(CASE WHEN rc.part_type = 'history' THEN rc.token_count ELSE NULL END), 0) as avg_history_tokens, " +
@@ -447,24 +445,39 @@ func GetTokenScopeL2ByDimension(dimension Dimension, startTimestamp, endTimestam
 		"COALESCE(AVG(CASE WHEN rc.is_prefix = true AND rc.is_stable = true THEN 1.0 ELSE 0.0 END), 0) as cache_friendliness, " +
 		"COALESCE(AVG(CASE WHEN rc.is_cache_friendly = true THEN 1.0 ELSE 0.0 END), 0) as cache_fulfillment_rate"
 
-	selectCols := cfg.nameExpr + ", " + l2Metrics
-	if cfg.subIdExpr != "" {
-		selectCols += ", " + cfg.subIdExpr
+	var nameExpr, groupCol, excludeWhere, subIdExpr string
+	switch dimension {
+	case DimensionModel:
+		nameExpr, groupCol, excludeWhere = "rdp.model_name as name", "rdp.model_name", "rdp.model_name != ''"
+	case DimensionUser:
+		nameExpr, groupCol, excludeWhere = "lg.username as name", "lg.username", "lg.username != ''"
+		subIdExpr = "MIN(rdp.user_id) as sub_id_col"
+	case DimensionKey:
+		nameExpr, groupCol, excludeWhere = "lg.token_name as name", "lg.token_name", "lg.token_name != ''"
+		subIdExpr = "MIN(rdp.token_id) as sub_id_col"
+	case DimensionChannel:
+		expr := "CAST(rdp.channel_id AS CHAR) as name"
+		if common.UsingPostgreSQL {
+			expr = "rdp.channel_id::text as name"
+		}
+		nameExpr, groupCol, excludeWhere = expr, "rdp.channel_id", "rdp.channel_id != 0"
+	default:
+		nameExpr, groupCol, excludeWhere = "rdp.model_name as name", "rdp.model_name", "rdp.model_name != ''"
+	}
+
+	selectCols := nameExpr + ", " + l2Metrics
+	if subIdExpr != "" {
+		selectCols += ", " + subIdExpr
 	}
 
 	tx := LOG_DB.Table("request_debug_payloads rdp").
 		Joins("INNER JOIN request_context_parts rc ON rc.request_id = rdp.request_id").
 		Joins("LEFT JOIN logs lg ON lg.request_id = rdp.request_id AND lg.type = ?", LogTypeConsume).
 		Select(selectCols).
-		Group("rdp." + cfg.groupCol)
+		Group(groupCol)
 
-	if cfg.excludeWhere != "" {
-		// username filter goes to logs table, others to rdp
-		if cfg.groupCol == "username" {
-			tx = tx.Where("lg." + cfg.excludeWhere)
-		} else {
-			tx = tx.Where("rdp." + cfg.excludeWhere)
-		}
+	if excludeWhere != "" {
+		tx = tx.Where(excludeWhere)
 	}
 	if userId > 0 {
 		tx = tx.Where("rdp.user_id = ?", userId)
